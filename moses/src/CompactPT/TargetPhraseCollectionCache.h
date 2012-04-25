@@ -32,8 +32,10 @@ class TargetPhraseCollectionCache {
     
     CacheMap m_phraseCache;
     
+#ifdef WITH_THREADS
     boost::mutex m_mutex;
-    
+#endif
+
   public:
     
     typedef CacheMap::iterator iterator;
@@ -69,7 +71,9 @@ class TargetPhraseCollectionCache {
     }
     
     void cache(const Phrase &sourcePhrase, TargetPhraseVectorPtr tpc) {
+#ifdef WITH_THREADS
       boost::mutex::scoped_lock lock(m_mutex);
+#endif
 
       iterator it = m_phraseCache.find(sourcePhrase);
       if(it != m_phraseCache.end()) {
@@ -80,7 +84,9 @@ class TargetPhraseCollectionCache {
     }
 
     TargetPhraseVectorPtr retrieve(const Phrase &sourcePhrase) {
+#ifdef WITH_THREADS
       boost::mutex::scoped_lock lock(m_mutex);
+#endif
 
       iterator it = m_phraseCache.find(sourcePhrase);
       if(it != m_phraseCache.end()) {
@@ -93,7 +99,9 @@ class TargetPhraseCollectionCache {
     }
 
     void prune() {
+#ifdef WITH_THREADS
       boost::mutex::scoped_lock lock(m_mutex);
+#endif
 
       if(m_phraseCache.size() > m_max * (1 + m_tolerance)) {
         typedef std::set<std::pair<clock_t, Phrase> > Cands;
@@ -115,7 +123,9 @@ class TargetPhraseCollectionCache {
     }
 
     void cleanUp() {
+#ifdef WITH_THREADS
       boost::mutex::scoped_lock lock(m_mutex);
+#endif
       m_phraseCache.clear();
     }
     
