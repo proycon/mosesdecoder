@@ -378,7 +378,7 @@ void TranslationOptionCollection::CreateTranslationOptions()
       size_t maxSize = size - startPos; // don't go over end of sentence
       size_t maxSizePhrase = StaticData::Instance().GetMaxPhraseLength();
       maxSize = std::min(maxSize, maxSizePhrase);
-
+      
       // ... and that end at endPos
       for (size_t endPos = startPos ; endPos < startPos + maxSize ; endPos++) {
         if (graph > 0 && // only skip subsequent graphs

@@ -1,6 +1,6 @@
 #include <iostream>
 #include "TypeDef.h"
-#include "PhraseDictionaryMemoryHashed.h"
+#include "CompactPT/PhrasetableCreator.h"
 
 using namespace Moses;
 
@@ -14,7 +14,7 @@ void printHelp()
 }
 
 int main(int argc,char **argv) {
-  std::cerr << "processLexicalTableHashed by Marcin Junczys-Dowmunt\n";
+  std::cerr << "processPhraseTableHashed by Marcin Junczys-Dowmunt\n";
   
   std::string inFilePath;
   std::string outFilePath("out");
@@ -37,10 +37,11 @@ int main(int argc,char **argv) {
     }
   }
 
+  PhrasetableCreator(inFilePath, outFilePath, 10, 16);
   
-  size_t numScoreComponent = 5;  
-  PhraseDictionaryMemoryHashed pt(numScoreComponent, MemoryHashedText, NULL);
-  pt.LoadText(inFilePath);
-  std::cerr << "Saving to " << outFilePath << std::endl;
-  pt.SaveBinary(outFilePath);
+  //size_t numScoreComponent = 5;  
+  //PhraseDictionaryMemoryHashed pt(numScoreComponent, MemoryHashedText, NULL);
+  //pt.LoadText(inFilePath);
+  //std::cerr << "Saving to " << outFilePath << std::endl;
+  //pt.SaveBinary(outFilePath);
 }

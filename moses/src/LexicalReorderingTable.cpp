@@ -332,6 +332,8 @@ void  LexicalReorderingTableMemoryHashed::LoadText(const std::string& filePath)
   std::vector<char*> tempScores;
   std::map<float, size_t> frequencies;
   
+  StringVector<unsigned char, unsigned long, MmapAllocator> phrases;
+  
   std::cerr << "Reading in reordering table" << std::endl;
   
   std::string fileName = filePath;
@@ -379,7 +381,7 @@ void  LexicalReorderingTableMemoryHashed::LoadText(const std::string& filePath)
       exit(0);
     }
         
-    m_hash.AddKey(MakeKey(f,e,c));
+    phrases.push_back(MakeKey(f,e,c));
     std::transform(p.begin(), p.end(), p.begin(), TransformScore);
     std::transform(p.begin(), p.end(), p.begin(), FloorScore);
     
@@ -392,8 +394,13 @@ void  LexicalReorderingTableMemoryHashed::LoadText(const std::string& filePath)
   }
   std::cerr << std::endl;
   
-  m_hash.Create();
-  m_hash.ClearKeys();
+  m_hash.Create(phrases);
+  
+  {
+    StringVector<unsigned char, unsigned long, MmapAllocator> tPhrases;
+    phrases.swap(tPhrases);
+  }
+
   
   std::cerr << "Creating Huffman compression tree for " << frequencies.size() << " symbols" << std::endl;
   m_tree = new Hufftree<int, float>(frequencies.begin(), frequencies.end());

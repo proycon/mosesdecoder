@@ -1,10 +1,11 @@
-#ifndef CMPHSTRINGVECTORADAPTER_H__
-#define CMPHSTRINGVECTORADAPTER_H__
+#ifndef CMPHPHRASETABLETEXTADAPTER_H__
+#define CMPHPHRASETABLETEXTADAPTER_H__
 
 #include <cassert>
+#include <iostream>
+#include <fstream>
 
 #include "cmph/src/cmph.h"
-#include "StringVector.h"
 
 namespace Moses {
     typedef struct {
@@ -14,7 +15,7 @@ namespace Moses {
    
       
     template <typename ValueT, typename PosT, template <typename> class Allocator>
-    static cmph_io_adapter_t *CmphStringVectorAdapterNew(StringVector<ValueT, PosT, Allocator>& sv)
+    static cmph_io_adapter_t *CmphPhraseTableTextAdapterNew(StringVector<ValueT, PosT, Allocator>& sv)
     {
         cmph_io_adapter_t * key_source = (cmph_io_adapter_t *)malloc(sizeof(cmph_io_adapter_t));
         cmph_vector_t * cmph_vector = (cmph_vector_t *)malloc(sizeof(cmph_vector_t));
@@ -30,7 +31,7 @@ namespace Moses {
     }
 
     template <typename ValueT, typename PosT, template <typename> class Allocator>
-    static int CmphStringVectorAdapterRead(void *data, char **key, cmph_uint32 *keylen) {
+    static int CmphPhraseTableTextAdapterRead(void *data, char **key, cmph_uint32 *keylen) {
         cmph_vector_t *cmph_vector = (cmph_vector_t *)data;
         StringVector<ValueT, PosT, Allocator>* sv = (StringVector<ValueT, PosT, Allocator>*)cmph_vector->vector;
         size_t size;
@@ -43,7 +44,7 @@ namespace Moses {
         return (int)(*keylen);
     }
     
-    static void CmphStringVectorAdapterDispose(void *data, char *key, cmph_uint32 keylen) {
+    static void CmphPhraseTableTextDispose(void *data, char *key, cmph_uint32 keylen) {
         delete[] key;
     }
 
@@ -52,13 +53,12 @@ namespace Moses {
         cmph_vector->position = 0;
     }
 
-    template <typename ValueT, typename PosT, template <typename> class Allocator>
-    static cmph_io_adapter_t* CmphStringVectorAdapter(StringVector<ValueT, PosT, Allocator>& sv) {
-        cmph_io_adapter_t * key_source = CmphStringVectorAdapterNew(sv);
+    static cmph_io_adapter_t* CmphPhraseTableTextAdapter(std::string filename) {
+        cmph_io_adapter_t * key_source = CmphPhraseTableTextAdapterNew(filename);
         
-        key_source->read = CmphStringVectorAdapterRead<ValueT, PosT, Allocator>;
-        key_source->dispose = CmphStringVectorAdapterDispose;
-        key_source->rewind = CmphStringVectorAdapterRewind;
+        key_source->read = CmphPhraseTableTextAdapterRead;
+        key_source->dispose = CmphPhraseTableTextAdapterDispose;
+        key_source->rewind = CmphPhraseTableTextAdapterRewind;
         return key_source;
     }
     

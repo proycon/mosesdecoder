@@ -46,7 +46,6 @@ template<typename PosType, typename DataType> class Hufftree {
     ~Hufftree() {}
   
     void Save(std::FILE*);
-    size_t size();
   
     std::vector<bool> encode(DataType const& value) {
       return m_encoding[value];
@@ -71,6 +70,14 @@ template<typename PosType, typename DataType> class Hufftree {
     inline DataType data(size_t i) {
       return m_data[i];
     }
+    
+    inline size_t freq(size_t i) {
+      return m_frequencies[i];
+    }
+    
+    inline size_t size() {
+      return m_data.size();
+    }
   
   private:
     typedef boost::unordered_map<DataType, std::vector<bool> > encodemap;
@@ -79,6 +86,7 @@ template<typename PosType, typename DataType> class Hufftree {
     
     std::vector<PosType> m_nodes;
     std::vector<DataType> m_data;
+    std::vector<size_t> m_frequencies;
     
     bool m_forEncoding;
     encodemap m_encoding;
@@ -156,6 +164,7 @@ Hufftree<PosType, DataType>::Hufftree(InputIterator begin, InputIterator end, bo
     m_encoding[begin->first] = zero;
     m_nodes.resize(1, -1);
     m_data.push_back(begin->first);
+    m_frequencies.push_back(begin->second);
     return;
   }
 
@@ -202,6 +211,7 @@ Hufftree<PosType, DataType>::Hufftree(InputIterator begin, InputIterator end, bo
       symb_no--;
       m_nodes.push_back(symb_no);
       m_data.push_back(*actual->data);
+      m_frequencies.push_back(actual->frequency);
     }
   }
 
@@ -227,6 +237,11 @@ Hufftree<PosType, DataType>::Hufftree(std::FILE* in, bool forEncoding)
   fread(&length2, sizeof(size_t), 1, in);
   m_data.resize(length2);
   fread(&(m_data[0]), sizeof(DataType), length2, in);
+  
+  size_t length3;
+  fread(&length3, sizeof(size_t), 1, in);
+  m_frequencies.resize(length3);
+  fread(&(m_frequencies[0]), sizeof(size_t), length3, in);
  
   if(m_forEncoding) {
     std::vector<bool> bitvec;
@@ -257,6 +272,10 @@ void Hufftree<PosType, DataType>::Save(std::FILE* out) {
   size_t length2 = m_data.size();
   fwrite(&length2, sizeof(size_t), 1, out);
   fwrite(&(m_data[0]), sizeof(DataType), length2, out);
+  
+  size_t length3 = m_frequencies.size();
+  fwrite(&length3, sizeof(size_t), 1, out);
+  fwrite(&(m_frequencies[0]), sizeof(size_t), length3, out);
 }
 
 template<typename PosType, typename DataType>

@@ -4,6 +4,11 @@ AM_CPPFLAGS = -W -Wall -ffor-scope -D_FILE_OFFSET_BITS=64 -D_LARGE_FILES $(BOOST
 libmoses_ladir = ${includedir}
 
 libmoses_la_HEADERS = \
+        CompactPT/CmphStringVectorAdapter.h \
+        CompactPT/BlockHashIndex.h \
+	CompactPT/MurmurHash3.h \
+        CompactPT/PhraseDecoder.h \
+	CompactPT/PhrasetableCreator.h \
         AlignmentInfo.h \
         AlignmentInfoCollection.h \
         BilingualDynSuffixArray.h \
@@ -172,6 +177,11 @@ libmoses_la_HEADERS += SyntacticLanguageModel.h
 endif
 
 libmoses_la_SOURCES = \
+        CompactPT/CmphStringVectorAdapter.cpp \
+	CompactPT/PhrasetableCreator.cpp \
+        CompactPT/BlockHashIndex.cpp \
+        CompactPT/MurmurHash3.cpp \
+        CompactPT/PhraseDecoder.cpp \
         AlignmentInfo.cpp \
         AlignmentInfoCollection.cpp \
         BilingualDynSuffixArray.cpp \
@@ -236,7 +246,6 @@ libmoses_la_SOURCES = \
         LexicalReorderingState.cpp \
         LexicalReorderingTable.cpp \
         Manager.cpp \
-        MurmurHash3.cpp \
         NGramCollection.cpp \
         NGramNode.cpp \
         PCNTools.cpp \

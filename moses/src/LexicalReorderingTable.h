@@ -19,10 +19,11 @@
 #include "ConfusionNet.h"
 #include "Sentence.h"
 #include "PrefixTreeMap.h"
-#include "HashIndex.h"
-#include "StringVector.h"
-#include "Hufftree.h"
-#include "MmapAllocator.h"
+
+#include "CompactPT/HashIndex.h"
+#include "CompactPT/StringVector.h"
+#include "CompactPT/Hufftree.h"
+#include "CompactPT/MmapAllocator.h"
 
 namespace Moses
 {

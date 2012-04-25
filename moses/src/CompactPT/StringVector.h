@@ -119,6 +119,7 @@ class StringVector {
     StringVector();
     
     void swap(StringVector<ValueT, PosT, Allocator> &c) {
+      m_positions.commit();
       m_positions.swap(c.m_positions);
       m_charArray.swap(c.m_charArray);
       
@@ -141,6 +142,12 @@ class StringVector {
     typename std::vector<ValueT>::const_iterator begin(PosT i) const;
     typename std::vector<ValueT>::const_iterator end(PosT i) const;
     
+    void clear() {
+      m_charArray.clear();
+      m_sorted = true;
+      m_positions = MonotonicVector<PosT, unsigned int, 32>();
+    }
+    
     range at(PosT i) const;
     range operator[](PosT i) const;
     range back() const;
@@ -158,7 +165,11 @@ class StringVector {
       m_memoryMapped = memoryMapped;
       
       size += std::fread(&m_sorted, sizeof(bool), 1, in) * sizeof(bool);
+      size_t mono1 = size;
       size += m_positions.load(in);
+      size_t mono2 = size;
+      
+      //std::cerr << "Monotonic Vector Size:" << (float(mono2 - mono1)/(1014*1024)) << std::endl;
 
       size += loadCharArray(m_charArray, in, m_memoryMapped);       
       return size;

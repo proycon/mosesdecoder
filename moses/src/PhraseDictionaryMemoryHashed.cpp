@@ -23,8 +23,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <fstream>
 #include <string>
 #include <iterator>
+#include <queue>
 #include <algorithm>
 #include <sys/stat.h>
+
 #include "PhraseDictionaryMemoryHashed.h"
 #include "FactorCollection.h"
 #include "Word.h"
@@ -33,6 +35,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "StaticData.h"
 #include "WordsRange.h"
 #include "UserMessage.h"
+#include "ThreadPool.h"
 
 using namespace std;
 
@@ -57,171 +60,150 @@ bool PhraseDictionaryMemoryHashed::Load(const std::vector<FactorType> &input
   if(m_implementation == MemoryHashedBinary)
     return LoadBinary(filePath);
   else
-    return LoadText(filePath);
+    return LoadBinary(filePath);
     
   return false;
-}
-  
-bool PhraseDictionaryMemoryHashed::LoadText(std::string filePath) {
-  InputFileStream inFile(filePath);
-
-  string line, prevSourcePhrase = "";
-  size_t phr_num = 0;
-  size_t line_num = 0;
-  size_t numElement = NOT_FOUND; // 3=old format, 5=async format which include word alignment info
-
-  std::vector<std::vector<std::string> > collection;
-  m_phraseCoder = new PhraseCoder(m_input, m_output, m_feature, m_numScoreComponent,
-                                  m_weight, m_weightWP, m_languageModels);
-  
-  m_phraseCoder->loadLexicalTable("lex.f2e");
-  
-  std::cerr << "Reading in phrase table" << std::endl;
-  
-  StringVector<unsigned char, unsigned long, MmapAllocator> packedTargetPhrases;
-  
-  std::stringstream targetStream;
-  while(getline(inFile, line)) {
-    ++line_num;
-    
-    std::vector<std::string> tokens = TokenizeMultiCharSeparator( line , "|||" );
-    
-    if (numElement == NOT_FOUND) {
-      // init numElement
-      numElement = tokens.size();
-      assert(numElement >= 3);
-      // extended style: source ||| target ||| scores ||| [alignment] ||| [counts]
-    }
-  
-    if (tokens.size() != numElement) {
-      stringstream strme;
-      strme << "Syntax error at " << filePath << ":" << line_num;
-      UserMessage::Add(strme.str());
-      abort();
-    }
-    
-    std::string sourcePhraseString = tokens[0];
-    
-    bool isLHSEmpty = (sourcePhraseString.find_first_not_of(" \t", 0) == string::npos);
-    if (isLHSEmpty) {
-      TRACE_ERR( filePath << ":" << line_num << ": pt entry contains empty target, skipping\n");
-      continue;
-    }
-    
-    if(sourcePhraseString != prevSourcePhrase && prevSourcePhrase != "") {
-      ++phr_num;
-      if(phr_num % 10000 == 0)
-        std::cerr << ".";
-      if(phr_num % 500000 == 0)
-        std::cerr << "[" << phr_num << "]" << std::endl;
-      
-      m_hash.AddKey(Trim(prevSourcePhrase));
-      packedTargetPhrases.push_back(m_phraseCoder->packCollection(collection));
-      collection.clear();
-    }
-    collection.push_back(tokens);
-    prevSourcePhrase = sourcePhraseString;    
-  }
-  std::cerr << std::endl;
-
-  m_hash.AddKey(Trim(prevSourcePhrase));
-  packedTargetPhrases.push_back(m_phraseCoder->packCollection(collection));
-  
-  m_hash.Create();
-  m_hash.ClearKeys();
-  
-  m_phraseCoder->calcHuffmanCodes();
-  
-  std::cerr << "Compressing target phrases" << std::endl;
-  for(size_t i = 0; i < m_hash.GetSize(); i++) {
-    if((i+1) % 100000 == 0)
-      std::cerr << ".";
-    if((i+1) % 5000000 == 0)
-      std::cerr << "[" << (i+1) << "]" << std::endl;
-    
-    m_targetPhrases.push_back(
-      m_phraseCoder->encodePackedCollection(packedTargetPhrases[i])
-    );
-  }
-  std::cerr << std::endl;
-
-  return true;
 }
 
 bool PhraseDictionaryMemoryHashed::LoadBinary(std::string filePath) {
     if (FileExists(filePath + ".mph"))
         filePath += ".mph";
 
-    m_phraseCoder = new PhraseCoder(m_input, m_output, m_feature, m_numScoreComponent,
-                                    m_weight, m_weightWP, m_languageModels);
+    m_phraseDecoder = new PhraseDecoder(*this, m_input, m_output, m_feature,
+                                    m_numScoreComponent, m_weight, m_weightWP,
+                                    m_languageModels);
   
     std::FILE* pFile = std::fopen(filePath.c_str() , "r");
-    size_t hashSize = m_hash.Load(pFile);
-    std::cerr << "Total HashIndex size: " << float(hashSize)/(1024*1024) << " M" << std::endl;
+    m_hash.LoadIndex(pFile);
+    //size_t hashSize = m_hash.Load(pFile);
+    //std::cerr << "Total HashIndex size: " << float(hashSize)/(1024*1024) << " M" << std::endl;
 
-    size_t coderSize = m_phraseCoder->load(pFile);
+    size_t coderSize = m_phraseDecoder->load(pFile);
     std::cerr << "Total PhraseCoder size: " << float(coderSize)/(1024*1024) << " M" << std::endl;
 
     size_t phraseSize = m_targetPhrases.load(pFile, true);
     std::cerr << "Total TargetPhrases size: " << float(phraseSize)/(1024*1024) << " M" << std::endl;
-    std::fclose(pFile);
+    //std::fclose(pFile);
     
-    
-    return hashSize && coderSize && phraseSize;
+    return coderSize && phraseSize;    
+    //return hashSize && coderSize && phraseSize;
 }
 
 bool PhraseDictionaryMemoryHashed::SaveBinary(std::string filePath) {
     
     std::FILE* pFile = std::fopen(filePath.c_str() , "w");
     size_t hashSize = m_hash.Save(pFile);
-    size_t coderSize = m_phraseCoder->save(pFile);
+    size_t coderSize = m_phraseDecoder->save(pFile);
     size_t phraseSize = m_targetPhrases.save(pFile);
     std::fclose(pFile);
     
     return hashSize && coderSize && phraseSize;
 }
 
-TargetPhraseCollection
-*PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
-                                                            &sourcePhrase) {
-  const std::string& factorDelimiter
-    = StaticData::Instance().GetFactorDelimiter();
+
+TargetPhraseVectorPtr
+PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
+                                                           &sourcePhrase) {
+    
+  TargetPhraseVectorPtr tpv = m_decodingCache.retrieve(sourcePhrase);
+  if(tpv != NULL)
+    return tpv;
   
   std::string sourcePhraseString = sourcePhrase.GetStringRep(*m_input);
   size_t index = m_hash[sourcePhraseString];
   
-  if(index != m_hash.GetSize()) {
-    std::cerr<< "Index: " << index << " " << sourcePhrase << std::endl;
+  if(index != m_hash.GetSize()) {    
+
+    std::string encoded = m_targetPhrases[index];
+
+    TargetPhraseVectorPtr decodedPhraseColl =
+      m_phraseDecoder->decodeCollection(encoded, sourcePhrase, m_decodingCache);
+    return decodedPhraseColl;
+  }
+  else
+    return TargetPhraseVectorPtr();
+}
+
+struct CompareTargetPhrase {
+  bool operator() (const TargetPhrase &a, const TargetPhrase &b) {
+    return a.GetFutureScore() > b.GetFutureScore();
+  }
+};
+
+const TargetPhraseCollection*
+PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhrase) const {
+  if(sourcePhrase.GetSize() > 7)
+    return NULL;
     
-    TargetPhraseCollection* phraseColl =
-      m_phraseCoder->decodeCollection(m_targetPhrases[index], sourcePhrase);
+  TargetPhraseVectorPtr decodedPhraseColl
+    = const_cast<PhraseDictionaryMemoryHashed*>(this)->CreateTargetPhraseCollection(sourcePhrase);
+  
+  if(decodedPhraseColl != NULL && decodedPhraseColl->size()) {
+    TargetPhraseVectorPtr tpv(new TargetPhraseVector(*decodedPhraseColl));
     
+    TargetPhraseVector::iterator nth =
+      (m_tableLimit == 0 || tpv->size() < m_tableLimit) ?
+      tpv->end() : tpv->begin() + m_tableLimit;
+    
+    std::nth_element(tpv->begin(), nth, tpv->end(), CompareTargetPhrase());
+
+    TargetPhraseCollection* phraseColl = new TargetPhraseCollection();
+    for(TargetPhraseVector::iterator it = tpv->begin();
+        it != nth; it++)
+      phraseColl->Add(new TargetPhrase(*it));
     phraseColl->NthElement(m_tableLimit);
-    CacheTargetPhraseCollection(phraseColl);
+    const_cast<PhraseDictionaryMemoryHashed*>(this)->CacheForCleanup(phraseColl);
     return phraseColl;
   }
   else
     return NULL;
+  
 }
+
+PhraseDictionaryMemoryHashed::~PhraseDictionaryMemoryHashed() {
+  if(m_phraseDecoder)
+    delete m_phraseDecoder;
+    
+  CleanUp();
+}
+
+//TO_STRING_BODY(PhraseDictionaryMemoryHashed)
+  
+void PhraseDictionaryMemoryHashed::CacheForCleanup(TargetPhraseCollection* tpc) {
+#ifdef WITH_THREADS
+    boost::mutex::scoped_lock lock(m_sentenceMutex);
+    m_sentenceCache[pthread_self()].push_back(tpc);
+#else
+    m_sentenceCache.push_back(tpc);
+#endif
+}
+
+void PhraseDictionaryMemoryHashed::InitializeForInput(const Moses::InputType&) {}
 
 void
 PhraseDictionaryMemoryHashed::AddEquivPhrase(const Phrase &source,
                                              const TargetPhrase &targetPhrase) { }
 
-const TargetPhraseCollection*
-PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhrase) const {
-  return const_cast<PhraseDictionaryMemoryHashed*>(this)->CreateTargetPhraseCollection(sourcePhrase);
+void PhraseDictionaryMemoryHashed::CleanUp() {
+  m_decodingCache.prune();
+#ifdef WITH_THREADS
+  {
+    boost::mutex::scoped_lock lock(m_sentenceMutex);
+    std::vector<TargetPhraseCollection*> &ref = m_sentenceCache[pthread_self()]; 
+    for(std::vector<TargetPhraseCollection*>::iterator it = ref.begin();
+        it != ref.end(); it++) 
+        delete *it;
+    std::vector<TargetPhraseCollection*> temp;
+    temp.swap(ref);
+  }
+#else
+    for(std::vector<TargetPhraseCollection*>::iterator it = m_sentenceCache.begin();
+        it != m_sentenceCache.end(); it++)
+        delete *it;
+    std::vector<TargetPhraseCollection*> temp;
+    temp.swap(m_sentenceCache);
+#endif
 }
-
-PhraseDictionaryMemoryHashed::~PhraseDictionaryMemoryHashed() {
-  if(m_phraseCoder)
-    delete m_phraseCoder;
-    
-  CleanUp();
-}
-
-//TO_STRING_BODY(PhraseDictionaryMemoryHashed);
-
 
 }
 
