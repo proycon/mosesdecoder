@@ -14,11 +14,11 @@ PhraseDecoder::PhraseDecoder(
   float weightWP,
   const LMList* languageModels
 )
-: m_containsAlignmentInfo(true), m_symbolTree(0), m_scoreTree(0),
-  m_alignTree(0), m_phraseDictionary(phraseDictionary), m_input(input),
-  m_output(output), m_feature(feature), m_numScoreComponent(numScoreComponent),
-  m_weight(weight), m_weightWP(weightWP),
-  m_languageModels(languageModels)
+  : m_coding(None), m_containsAlignmentInfo(true), m_symbolTree(0),
+  m_scoreTree(0), m_alignTree(0), m_phraseDictionary(phraseDictionary),
+  m_input(input), m_output(output), m_feature(feature),
+  m_numScoreComponent(numScoreComponent), m_weight(weight),
+  m_weightWP(weightWP), m_languageModels(languageModels)
 { }
 
 PhraseDecoder::~PhraseDecoder() {
@@ -32,7 +32,7 @@ PhraseDecoder::~PhraseDecoder() {
     delete m_alignTree;
 }
 
-unsigned PhraseDecoder::getSourceSymbolId(std::string& symbol) {
+unsigned PhraseDecoder::getSourceSymbolId(std::string& symbol) {    
   size_t idx = m_sourceSymbols.find(symbol);
   return idx;
 }
@@ -57,21 +57,21 @@ unsigned PhraseDecoder::getTranslation(unsigned srcIdx, size_t rank) {
 }
 
 unsigned PhraseDecoder::decodeREncSymbol1(unsigned encodedSymbol) {
-  return encodedSymbol &= ~(1 << 30);
+  return encodedSymbol &= ~(3 << 30);
 }
 
-unsigned PhraseDecoder::decodeREncSymbol2(unsigned encodedSymbol) {
-  return encodedSymbol &= ~(2 << 30);
-}
-
-unsigned PhraseDecoder::decodeREncSymbol3Rank(unsigned encodedSymbol) {
+unsigned PhraseDecoder::decodeREncSymbol2Rank(unsigned encodedSymbol) {
   return encodedSymbol &= ~(255 << 24);
 }
 
-unsigned PhraseDecoder::decodeREncSymbol3Position(unsigned encodedSymbol) {
+unsigned PhraseDecoder::decodeREncSymbol2Position(unsigned encodedSymbol) {
   encodedSymbol &= ~(3 << 30);
   encodedSymbol >>= 24;
   return encodedSymbol;
+}
+
+unsigned PhraseDecoder::decodeREncSymbol3(unsigned encodedSymbol) {
+  return encodedSymbol &= ~(3 << 30);
 }
 
 unsigned PhraseDecoder::decodePREncSymbol1(unsigned encodedSymbol) {
@@ -92,6 +92,20 @@ unsigned PhraseDecoder::decodePREncSymbol2Rank(unsigned encodedSymbol) {
 
 size_t PhraseDecoder::load(std::FILE* in) {
   size_t start = std::ftell(in);
+  
+  std::fread(&m_coding, sizeof(m_coding), 1, in);
+  if(m_coding == REnc) {
+    m_sourceSymbols.load(in);
+    
+    size_t size;
+    std::fread(&size, sizeof(size_t), 1, in);
+    m_lexicalTableIndex.resize(size);
+    std::fread(&m_lexicalTableIndex[0], sizeof(size_t), size, in);
+    
+    std::fread(&size, sizeof(size_t), 1, in);
+    m_lexicalTable.resize(size);
+    std::fread(&m_lexicalTable[0], sizeof(SrcTrg), size, in);
+  }
   
   m_targetSymbols.load(in);
   m_symbolTree = new Hufftree<int, unsigned>(in, true);
@@ -140,6 +154,16 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
 
   typedef std::pair<size_t, size_t> AlignPoint2;
 
+  std::vector<unsigned> sourceWords;
+  if(m_coding == REnc) {
+    for(size_t i = 0; i < sourcePhrase.GetSize(); i++) {
+      std::string sourceWord
+        = sourcePhrase.GetWord(i).GetString(*m_input, false);
+      unsigned idx = getSourceSymbolId(sourceWord);
+      sourceWords.push_back(idx);
+    }
+  }
+  
   TargetPhraseVectorPtr tpv(new TargetPhraseVector());
 
   unsigned phraseStopSymbol = 0; //m_targetSymbolsMap["__SPECIAL_STOP_SYMBOL__"];
@@ -173,7 +197,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
       
       if(node < 0) {            
         if(state == New) {
-          // Heap allocation in threads!
+          // Heap allocation in threads!          
           tpv->push_back(TargetPhrase(Output));
           targetPhrase = &tpv->back();
           targetPhrase->SetSourcePhrase(&sourcePhrase);
@@ -196,31 +220,21 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
                 unsigned decodedSymbol = decodeREncSymbol1(symbol);
                 wordString = getTargetSymbol(decodedSymbol);
               }
-              else if(type == 2) {
-                size_t rank = decodeREncSymbol2(symbol);
-                size_t srcPos = targetPhrase->GetSize();
-                size_t trgPos = srcPos;
-                                
-                std::string sourceWord
-                  = sourcePhrase.GetWord(srcPos).GetString(*m_input, false);
+              else if (type == 2) {
+                size_t rank = decodeREncSymbol2Rank(symbol);
+                size_t srcPos = decodeREncSymbol2Position(symbol);
+                size_t trgPos = targetPhrase->GetSize();
                 
-                unsigned idx = getSourceSymbolId(sourceWord);
-                wordString = getTargetSymbol(getTranslation(idx, rank));
-                    
+                wordString = getTargetSymbol(getTranslation(sourceWords[srcPos], rank));
                 //if(StaticData::Instance().UseAlignmentInfo())
                 //  alignment.insert(AlignPoint(srcPos, trgPos));
               }
-              else if (type == 3) {
-                size_t rank = decodeREncSymbol3Rank(symbol);
-                size_t srcPos = decodeREncSymbol3Position(symbol);
-                size_t trgPos = targetPhrase->GetSize();
-                
-                std::string sourceWord
-                  = sourcePhrase.GetWord(srcPos).GetString(*m_input, false);
-                    
-                unsigned idx = getSourceSymbolId(sourceWord);
-                wordString = getTargetSymbol(getTranslation(idx, rank));
-                 
+              else if(type == 3) {
+                size_t rank = decodeREncSymbol3(symbol);
+                size_t srcPos = targetPhrase->GetSize();
+                size_t trgPos = srcPos;
+                                
+                wordString = getTargetSymbol(getTranslation(sourceWords[srcPos], rank));   
                 //if(StaticData::Instance().UseAlignmentInfo())
                 //  alignment.insert(AlignPoint(srcPos, trgPos));
               }
@@ -314,7 +328,10 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
       mask = mask << 1;
     }
   }
-  cache.cache(sourcePhrase, tpv);
+  
+  if(m_coding == PREnc)
+    cache.cache(sourcePhrase, tpv);
+  
   return tpv;
 }
 

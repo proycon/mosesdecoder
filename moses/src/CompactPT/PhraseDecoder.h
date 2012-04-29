@@ -75,9 +75,9 @@ class PhraseDecoder {
     unsigned getTranslation(unsigned srcIdx, size_t rank);
     
     unsigned decodeREncSymbol1(unsigned encodedSymbol);
-    unsigned decodeREncSymbol2(unsigned encodedSymbol);
-    unsigned decodeREncSymbol3Rank(unsigned encodedSymbol);
-    unsigned decodeREncSymbol3Position(unsigned encodedSymbol);
+    unsigned decodeREncSymbol2Rank(unsigned encodedSymbol);
+    unsigned decodeREncSymbol2Position(unsigned encodedSymbol);
+    unsigned decodeREncSymbol3(unsigned encodedSymbol);
     
     unsigned decodePREncSymbol1(unsigned encodedSymbol);
     int decodePREncSymbol2Left(unsigned encodedSymbol);

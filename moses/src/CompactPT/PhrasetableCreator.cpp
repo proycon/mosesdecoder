@@ -12,7 +12,7 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
                                        size_t orderBits, size_t fingerPrintBits)
   : m_inPath(inPath), m_outPath(outPath),
     m_outFile(std::fopen(m_outPath.c_str(), "w")), m_numScoreComponent(5),
-    m_coding(REnc), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits), 
+    m_coding(PREnc), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits), 
 #ifdef WITH_THREADS
     m_threads(6),
     m_srcHash(m_orderBits, m_fingerPrintBits, m_threads/2),
@@ -32,8 +32,20 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     std::cerr << "srcHash: " << m_srcHash.GetSize() << std::endl;
     std::cerr << "TargetSymbols: " << m_targetSymbolsMap.size() << std::endl;
     
-    if(m_coding == REnc)
+    if(m_coding == REnc) {
+        std::vector<std::string> temp1;
+        temp1.resize(m_sourceSymbolsMap.size());
+        for(boost::unordered_map<std::string, unsigned>::iterator it
+            = m_sourceSymbolsMap.begin(); it != m_sourceSymbolsMap.end(); it++)
+            temp1[it->second] = it->first;
+            
+        std::sort(temp1.begin(), temp1.end());
+        
+        for(size_t i = 0; i < temp1.size(); i++)
+            m_sourceSymbolsMap[temp1[i]] = i;
+        
         loadLexicalTable("/home/marcinj/Poleng/Wipo/coppa/model/lex.f2e");
+    }
             
     encodeTargetPhrases();
     
@@ -49,12 +61,15 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     
     std::cerr << "CompressedPhrases: " << m_compressedTargetPhrases.size() << std::endl;
 
+    std::fwrite(&m_coding, sizeof(m_coding), 1, m_outFile);
     if(m_coding == REnc) {
         std::vector<std::string> temp1;
         temp1.resize(m_sourceSymbolsMap.size());
         for(boost::unordered_map<std::string, unsigned>::iterator it
             = m_sourceSymbolsMap.begin(); it != m_sourceSymbolsMap.end(); it++)
             temp1[it->second] = it->first;
+            
+        std::sort(temp1.begin(), temp1.end());
             
         StringVector<unsigned char, unsigned, std::allocator> sourceSymbols;
         for(std::vector<std::string>::iterator it = temp1.begin();
@@ -412,14 +427,14 @@ unsigned PhrasetableCreator::encodeREncSymbol1(unsigned trgIdx) {
 
 unsigned PhrasetableCreator::encodeREncSymbol2(unsigned pos, unsigned rank) {
   unsigned symbol = rank;
-  symbol |= 2 << 30;
+  symbol |= 1 << 30;
   symbol |= pos << 24;
   return symbol;
 }
 
 unsigned PhrasetableCreator::encodeREncSymbol3(unsigned rank) {
   unsigned symbol = rank;
-  symbol |= 3 << 30;
+  symbol |= 2 << 30;
   return symbol;
 }
 
