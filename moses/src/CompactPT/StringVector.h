@@ -51,7 +51,7 @@ template <typename ValueT = unsigned char, typename PosT = unsigned int,
 class StringVector {    
   protected:
     std::vector<ValueT, Allocator<ValueT> > m_charArray;
-    MonotonicVector<PosT, unsigned int, 32> m_positions;
+    MonotonicVector<PosT, unsigned int, 32, Allocator> m_positions;
     bool m_sorted;
     bool m_memoryMapped;
 
@@ -166,10 +166,8 @@ class StringVector {
       
       size += std::fread(&m_sorted, sizeof(bool), 1, in) * sizeof(bool);
       size_t mono1 = size;
-      size += m_positions.load(in);
+      size += m_positions.load(in, m_memoryMapped);
       size_t mono2 = size;
-      
-      //std::cerr << "Monotonic Vector Size:" << (float(mono2 - mono1)/(1014*1024)) << std::endl;
 
       size += loadCharArray(m_charArray, in, m_memoryMapped);       
       return size;
@@ -210,7 +208,7 @@ class StringVector {
         // with length valSize * sizeof(ValueT). Mapped region cannot be resized.
         
         size_t valPos = std::ftell(in);
-        Allocator<ValueT> alloc(in, valSize, valPos);
+        Allocator<ValueT> alloc(in, valPos);
         std::vector<ValueT, Allocator<ValueT> > charArrayTemp(alloc);
         charArrayTemp.resize(valSize);
         c.swap(charArrayTemp);

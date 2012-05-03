@@ -9,10 +9,11 @@ size_t maxPhrases = 0;
 std::string PhrasetableCreator::m_phraseStopSymbol = "__SPECIAL_STOP_SYMBOL__";
     
 PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
-                                       size_t orderBits, size_t fingerPrintBits)
+                                       Coding coding, size_t orderBits,
+                                       size_t fingerPrintBits)
   : m_inPath(inPath), m_outPath(outPath),
     m_outFile(std::fopen(m_outPath.c_str(), "w")), m_numScoreComponent(5),
-    m_coding(PREnc), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits), 
+    m_coding(coding), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits), 
 #ifdef WITH_THREADS
     m_threads(6),
     m_srcHash(m_orderBits, m_fingerPrintBits, m_threads/2),
@@ -100,9 +101,9 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     
     targetSymbols.save(m_outFile);
     
-    m_symbolTree->Save(m_outFile);
-    m_scoreTree->Save(m_outFile);
-    m_alignTree->Save(m_outFile);
+    m_symbolTree->save(m_outFile);
+    m_scoreTree->save(m_outFile);
+    m_alignTree->save(m_outFile);
     size_t phraseSize = m_compressedTargetPhrases.save(m_outFile);
     std::fclose(m_outFile);
 }
@@ -747,7 +748,7 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
             case EncodeSymbol:
             case EncodeScore:
             case EncodeAlignment:
-                std::vector<bool> code;
+                boost::dynamic_bitset<> code;
                 if(state == EncodeSymbol) {
                     code = m_symbolTree->encode(symbol);
                     if(symbol == phraseStopSymbolId)
@@ -770,7 +771,7 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
                         state = ReadAlignment;
                 }
                 
-                for(size_t j = 0; j < code.size(); j++) {
+                for(int j = code.size()-1; j >= 0; j--) {
                     if(code[j])
                         byte |= mask;
                     mask = mask << 1;

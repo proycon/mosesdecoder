@@ -185,6 +185,7 @@ PhraseDictionaryMemoryHashed::AddEquivPhrase(const Phrase &source,
                                              const TargetPhrase &targetPhrase) { }
 
 void PhraseDictionaryMemoryHashed::CleanUp() {
+  m_hash.KeepNLastRanges(0.01, 0.2);
   m_decodingCache.prune();
 #ifdef WITH_THREADS
   {

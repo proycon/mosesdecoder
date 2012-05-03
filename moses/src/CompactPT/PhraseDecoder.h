@@ -22,7 +22,7 @@
 #include "PhraseDictionaryMemoryHashed.h"
 
 #include "StringVector.h"
-#include "Hufftree.h"
+#include "CanonicalHuffman.h"
 #include "ConsistantPhrases.h"
 #include "TargetPhraseCollectionCache.h"
 
@@ -41,15 +41,16 @@ class PhraseDecoder {
     size_t m_numScoreComponent;
     bool m_containsAlignmentInfo;
     
+    boost::unordered_map<std::string, unsigned> m_sourceSymbolsMap;
     StringVector<unsigned char, unsigned, std::allocator> m_sourceSymbols;
     StringVector<unsigned char, unsigned, std::allocator> m_targetSymbols;
     
     std::vector<size_t> m_lexicalTableIndex;
     std::vector<SrcTrg> m_lexicalTable;
     
-    Hufftree<int, unsigned>* m_symbolTree;
-    Hufftree<int, float>* m_scoreTree;
-    Hufftree<int, AlignPoint>* m_alignTree;
+    CanonicalHuffman<unsigned>* m_symbolTree;
+    CanonicalHuffman<float>* m_scoreTree;
+    CanonicalHuffman<AlignPoint>* m_alignTree;
     
     PhraseDictionaryMemoryHashed& m_phraseDictionary;   
     

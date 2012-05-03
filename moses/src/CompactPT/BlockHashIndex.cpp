@@ -9,25 +9,27 @@ BlockHashIndex::BlockHashIndex(size_t orderBits, size_t fingerPrintBits,
                                size_t threadsNum)
 : m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits),
   m_fileHandle(0), m_fileHandleStart(0), m_algo(CMPH_CHD), m_size(0),
-  m_lastSaved(-1), m_lastDropped(-1), m_threadPool(threadsNum) {}
-
+  m_lastSaved(-1), m_lastDropped(-1), m_numLoadedRanges(0),
+  m_threadPool(threadsNum) {}
+  
 BlockHashIndex::BlockHashIndex(size_t orderBits, size_t fingerPrintBits,
                                CMPH_ALGO algo, size_t threadsNum)
 : m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits),
   m_fileHandle(0), m_fileHandleStart(0), m_algo(algo), m_size(0),
-  m_lastSaved(-1), m_lastDropped(-1), m_threadPool(threadsNum) {}
+  m_lastSaved(-1), m_lastDropped(-1), m_numLoadedRanges(0),
+  m_threadPool(threadsNum) {}
   
 #else
 
 BlockHashIndex::BlockHashIndex(size_t orderBits, size_t fingerPrintBits)
 : m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits),
   m_fileHandle(0), m_fileHandleStart(0), m_algo(CMPH_CHD), m_size(0),
-  m_lastSaved(-1), m_lastDropped(-1) {}
+  m_lastSaved(-1), m_lastDropped(-1), m_numLoadedRanges(0) {}
 
 BlockHashIndex::BlockHashIndex(size_t orderBits, size_t fingerPrintBits, CMPH_ALGO algo)
 : m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits),
   m_fileHandle(0), m_fileHandleStart(0), m_algo(algo), m_size(0),
-  m_lastSaved(-1), m_lastDropped(-1) {}
+  m_lastSaved(-1), m_lastDropped(-1), m_numLoadedRanges(0) {}
   
 #endif
 
@@ -35,7 +37,12 @@ BlockHashIndex::~BlockHashIndex() {
   for(std::vector<cmph_t*>::iterator it = m_hashes.begin();
       it != m_hashes.end(); it++)
     if(*it != 0)
-      cmph_destroy(*it);        
+      cmph_destroy(*it);
+      
+  for(std::vector<PairedPackedArray<>*>::iterator it = m_arrays.begin();
+      it != m_arrays.end(); it++)
+    if(*it != 0)
+      delete *it;
 }
 
 size_t BlockHashIndex::GetHash(const char* key) {
@@ -71,6 +78,8 @@ size_t BlockHashIndex::GetHash(size_t i, const char* key) {
   size_t idx = cmph_search(m_hashes[i], key, (cmph_uint32) strlen(key));
   
   std::pair<size_t, size_t> orderPrint = m_arrays[i]->get(idx);
+  m_clocks[i] = clock();
+  
   if(GetFprint(key) == orderPrint.second)
       return orderPrint.first;
   else
@@ -136,7 +145,9 @@ void BlockHashIndex::DropRange(size_t i) {
   if(m_arrays[i] != 0) {
     delete m_arrays[i];
     m_arrays[i] = 0;
+    m_clocks[i] = 0;
   }
+  m_numLoadedRanges--;
 }
 
 void BlockHashIndex::DropLastRange() {
@@ -209,8 +220,9 @@ void BlockHashIndex::LoadIndex(std::FILE* mphf) {
   std::fread(&seekIndexSize, sizeof(size_t), 1, m_fileHandle);
   m_seekIndex.resize(seekIndexSize);
   std::fread(&m_seekIndex[0], sizeof(size_t), seekIndexSize, m_fileHandle);
-  m_hashes.resize(seekIndexSize);
-  m_arrays.resize(seekIndexSize);
+  m_hashes.resize(seekIndexSize, 0);
+  m_clocks.resize(seekIndexSize, 0);
+  m_arrays.resize(seekIndexSize, 0);
   
   std::fread(&m_size, sizeof(size_t), 1, m_fileHandle);
 }
@@ -226,6 +238,9 @@ void BlockHashIndex::LoadRange(size_t i) {
   m_arrays[i]->load(m_fileHandle);
   
   m_hashes[i] = hash;
+  m_clocks[i] = clock();
+  
+  m_numLoadedRanges++;
 }
 
 size_t BlockHashIndex::Load(std::string filename) {
@@ -253,6 +268,29 @@ size_t BlockHashIndex::Load(std::FILE * mphf) {
 
 size_t BlockHashIndex::GetSize() const {
   return m_size;
+}
+
+void BlockHashIndex::KeepNLastRanges(float ratio, float tolerance) {
+#ifdef WITH_THREADS
+  boost::mutex::scoped_lock lock(m_mutex);
+#endif
+  
+  size_t n = m_hashes.size() * ratio;
+  
+  std::cerr << "Hashes Loaded: " << m_numLoadedRanges << "/" << m_hashes.size() << std::endl;
+  if(m_numLoadedRanges > size_t(n * (1+tolerance))) {
+    typedef std::vector<std::pair<clock_t, size_t> > LastLoaded;
+    LastLoaded lastLoaded;
+    for(size_t i = 0; i < m_hashes.size(); i++) {
+      if(m_hashes[i] != 0)
+        lastLoaded.push_back(std::make_pair(m_clocks[i], i));
+    }
+      
+    std::sort(lastLoaded.begin(), lastLoaded.end());
+    for(LastLoaded::reverse_iterator it = lastLoaded.rbegin() + size_t(n * (1-tolerance));
+        it != lastLoaded.rend(); it++)
+      DropRange(it->second);
+  }
 }
 
 }

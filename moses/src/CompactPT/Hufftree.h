@@ -38,6 +38,10 @@ Retrieved from: http://en.literateprograms.org/Huffman_coding_(C_Plus_Plus)?oldi
 
 #include <boost/unordered_map.hpp>
 
+#include "CanonicalHuffman.h"
+
+namespace Moses {
+
 template<typename PosType, typename DataType> class Hufftree {
   public:
     template<typename InputIterator>
@@ -93,6 +97,9 @@ template<typename PosType, typename DataType> class Hufftree {
     
     class Node;
     class NodeOrder;
+    
+    template <typename T1, typename T2> friend class CanonicalHuffman;
+    //friend class CanonicalDecoder<DataType>;
 };
 
 template<typename PosType, typename DataType>
@@ -430,6 +437,8 @@ void Hufftree<PosType, DataType>::decodeWithLength(InputIterator begin, InputIte
       mask = mask << 1;
     }
   }
+}
+
 }
 
 #endif

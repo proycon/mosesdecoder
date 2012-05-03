@@ -15,14 +15,19 @@
 #include <cassert>
 
 #include "ListCoders.h"
+#include "MmapAllocator.h"
 
 namespace Moses {
 
-template<typename PosT = size_t, typename NumT = size_t, PosT stepSize = 32>
+template<typename PosT = size_t, typename NumT = size_t, PosT stepSize = 32,
+template <typename> class Allocator = std::allocator>
 class MonotonicVector {
   private:
-    std::vector<NumT> m_anchors;
-    std::vector<unsigned int> m_diffs;
+    typedef std::vector<NumT, Allocator<NumT> > Anchors;
+    typedef std::vector<unsigned int, Allocator<unsigned int> > Diffs;
+    
+    Anchors m_anchors;
+    Diffs m_diffs;
     std::vector<unsigned int> m_tempDiffs;
     
     size_t m_size;
@@ -43,7 +48,7 @@ class MonotonicVector {
       PosT j = m_anchors[i / s];
       PosT r = i % s;
           
-      std::vector<unsigned int>::const_iterator it = m_diffs.begin() + j;
+      typename Diffs::const_iterator it = m_diffs.begin() + j;
       
       PosT k = 0;
       k += VarInt32::decodeAndSum(it, m_diffs.end(), 1);
@@ -107,21 +112,65 @@ class MonotonicVector {
         + m_anchors.size() * sizeof(NumT);
     }
     
-    size_t load(std::FILE* in) {
+    size_t load(std::FILE* in, bool map = false) {
       size_t byteSize = 0;
       
       byteSize += fread(&m_final, sizeof(bool), 1, in) * sizeof(bool);
       byteSize += fread(&m_size, sizeof(size_t), 1, in) * sizeof(size_t);
       byteSize += fread(&m_last, sizeof(PosT), 1, in) * sizeof(PosT);
       
-      size_t size;
-      byteSize += fread(&size, sizeof(size_t), 1, in) * sizeof(size_t);
-      m_diffs.resize(size);
-      byteSize += fread(&m_diffs[0], sizeof(unsigned int), size, in) * sizeof(unsigned int);
+      byteSize += loadVector(m_diffs, in, map);
+      byteSize += loadVector(m_anchors, in, map);
       
-      byteSize += fread(&size, sizeof(size_t), 1, in) * sizeof(size_t);
-      m_anchors.resize(size);
-      byteSize += fread(&m_anchors[0], sizeof(NumT), size, in) * sizeof(NumT);
+      return byteSize;
+    }
+    
+    template <typename ValueT>
+    size_t loadVector(std::vector<ValueT, std::allocator<ValueT> >& v,
+                       std::FILE* in, bool map = false) {
+      // Can only be read into memory. Mapping not possible with std:allocator.
+      assert(map == false);
+      
+      size_t byteSize = 0;
+      
+      size_t valSize;
+      byteSize += std::fread(&valSize, sizeof(size_t), 1, in) * sizeof(size_t);
+      
+      v.resize(valSize, 0);
+      byteSize += std::fread(&v[0], sizeof(ValueT), valSize, in) * sizeof(ValueT);
+    
+      return byteSize;
+    }
+    
+    template <typename ValueT>
+    size_t loadVector(std::vector<ValueT, MmapAllocator<ValueT> >& v,
+                       std::FILE* in, bool map = false) {
+      size_t byteSize;
+
+      size_t valSize;
+      byteSize += std::fread(&valSize, sizeof(size_t), 1, in) * sizeof(size_t);
+
+      if(map == false) {
+        // Read data into temporary file (default constructor of MmapAllocator)
+        // and map memory onto temporary file. Can be resized.
+        
+        v.resize(valSize, 0);
+        byteSize += std::fread(&v[0], sizeof(ValueT), valSize, in) * sizeof(ValueT);
+      }
+      else {
+        // Map it directly on specified region of file "in" starting at valPos
+        // with length valSize * sizeof(ValueT). Mapped region cannot be resized.
+        
+        size_t valPos = std::ftell(in);
+        
+        Allocator<ValueT> alloc(in, valPos);
+        std::vector<ValueT, Allocator<ValueT> > vTemp(alloc);
+        vTemp.resize(valSize);
+        v.swap(vTemp);
+        
+        std::fseek(in, valSize * sizeof(ValueT), SEEK_CUR);
+        byteSize += valSize * sizeof(ValueT);
+      }
       
       return byteSize;
     }
@@ -146,7 +195,7 @@ class MonotonicVector {
       return byteSize;
     }
     
-    void swap(MonotonicVector<PosT, NumT, stepSize> &mv) {
+    void swap(MonotonicVector<PosT, NumT, stepSize, Allocator> &mv) {
       if(!m_final)
         commit();
         

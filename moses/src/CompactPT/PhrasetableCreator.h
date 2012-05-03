@@ -15,7 +15,7 @@
 #include "CompactPT/BlockHashIndex.h"
 #include "CompactPT/ConsistantPhrases.h"
 #include "CompactPT/StringVector.h"
-#include "CompactPT/Hufftree.h"
+#include "CompactPT/CanonicalHuffman.h"
 
 
 namespace Moses {
@@ -162,13 +162,16 @@ public:
 static bool operator<(const PackedItem &pi1, const PackedItem &pi2);
 
 class PhrasetableCreator {
+  public:
+    enum Coding { None, REnc, PREnc };
+    
   private:
     std::string m_inPath;
     std::string m_outPath;
     
     std::FILE* m_outFile;
     
-    enum Coding { None, REnc, PREnc } m_coding;
+    Coding m_coding;
     size_t m_numScoreComponent;
     size_t m_orderBits;
     size_t m_fingerPrintBits;
@@ -231,9 +234,9 @@ class PhrasetableCreator {
     ScoreCounter m_scoreCounter;
     AlignCounter m_alignCounter;
     
-    typedef Hufftree<int, unsigned> SymbolTree;
-    typedef Hufftree<int, float> ScoreTree;
-    typedef Hufftree<int, AlignPoint> AlignTree;
+    typedef CanonicalHuffman<unsigned> SymbolTree;
+    typedef CanonicalHuffman<float> ScoreTree;
+    typedef CanonicalHuffman<AlignPoint> AlignTree;
     
     SymbolTree* m_symbolTree;
     ScoreTree* m_scoreTree;
@@ -298,7 +301,7 @@ class PhrasetableCreator {
   public:
     
     PhrasetableCreator(std::string inPath, std::string outPath,
-                       size_t orderBits, size_t fingerPrintBits);
+                       Coding coding, size_t orderBits, size_t fingerPrintBits);
     
     friend class EncodingTask;
     friend class CompressionTask;

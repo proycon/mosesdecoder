@@ -61,13 +61,16 @@ class BlockHashIndex {
     
     StringVector<unsigned char, unsigned long> m_landmarks;
     
-    std::vector<cmph_t*> m_hashes; 
+    std::vector<cmph_t*> m_hashes;
+    std::vector<clock_t> m_clocks;
     std::vector<PairedPackedArray<>*> m_arrays;
+    
     std::vector<size_t> m_seekIndex;
     
     size_t m_size;
     int m_lastSaved;
     int m_lastDropped;
+    size_t m_numLoadedRanges;
     
     size_t GetFprint(const char* key) const;
     size_t GetHash(size_t i, const char* key);
@@ -118,6 +121,8 @@ class BlockHashIndex {
     size_t Load(std::FILE * mphf);
     
     size_t GetSize() const;
+    
+    void KeepNLastRanges(float ratio = 0.1, float tolerance = 0.1);
     
     template <typename Keys>
     void AddRange(Keys &keys) {

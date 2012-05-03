@@ -18,11 +18,10 @@ namespace Moses {
         size_t m_page_size;
         size_t m_map_size;
         
-        size_t m_data_size;
         size_t m_data_offset;
         bool m_fixed;
         
-        T* m_data_ptr;
+        char* m_data_ptr;
         
       public:
         typedef T        value_type;
@@ -36,32 +35,32 @@ namespace Moses {
         MmapAllocator() throw()
          : m_file_ptr(std::tmpfile()), m_file_desc(fileno(m_file_ptr)),
            m_page_size(sysconf(_SC_PAGE_SIZE)), m_map_size(0), m_data_ptr(0),
-           m_data_size(0), m_data_offset(0), m_fixed(false)
+           m_data_offset(0), m_fixed(false)
         { }
         
         MmapAllocator(std::FILE* f_ptr) throw()
          : m_file_ptr(f_ptr), m_file_desc(fileno(m_file_ptr)),
            m_page_size(sysconf(_SC_PAGE_SIZE)), m_map_size(0), m_data_ptr(0),
-           m_data_size(0), m_data_offset(0), m_fixed(false)
+           m_data_offset(0), m_fixed(false)
         { }
         
-        MmapAllocator(std::FILE* f_ptr, size_t data_size, size_t data_offset = 0) throw()
+        MmapAllocator(std::FILE* f_ptr, size_t data_offset = 0) throw()
          : m_file_ptr(f_ptr), m_file_desc(fileno(m_file_ptr)),
            m_page_size(sysconf(_SC_PAGE_SIZE)), m_map_size(0), m_data_ptr(0),
-           m_data_size(data_size), m_data_offset(data_offset), m_fixed(true)
+           m_data_offset(data_offset), m_fixed(true)
         { }
         
         MmapAllocator(std::string fileName) throw()
          : m_file_ptr(std::fopen(fileName.c_str(), "wb+")), m_file_desc(fileno(m_file_ptr)),
            m_page_size(sysconf(_SC_PAGE_SIZE)), m_map_size(0), m_data_ptr(0),
-           m_data_size(0), m_data_offset(0), m_fixed(false)
+           m_data_offset(0), m_fixed(false)
         { }
             
         MmapAllocator(const MmapAllocator& c) throw()
          : m_file_ptr(c.m_file_ptr), m_file_desc(c.m_file_desc),
            m_page_size(c.m_page_size), m_map_size(c.m_map_size),
-           m_data_ptr(c.m_data_ptr), m_data_size(c.m_data_size),
-           m_data_offset(c.m_data_offset), m_fixed(c.m_fixed)
+           m_data_ptr(c.m_data_ptr), m_data_offset(c.m_data_offset),
+           m_fixed(c.m_fixed)
         { }
         
         ~MmapAllocator() throw() {
@@ -94,22 +93,20 @@ namespace Moses {
             
             if(!m_fixed) {
                 int res = ftruncate(m_file_desc, m_map_size);
-                m_data_ptr = (pointer)mmap(0, m_map_size, PROT_READ|PROT_WRITE, MAP_SHARED,
+                m_data_ptr = (char*)mmap(0, m_map_size, PROT_READ|PROT_WRITE, MAP_SHARED,
                                        m_file_desc, 0);
-                return m_data_ptr;
+                return (pointer)m_data_ptr;
             }
             else {
                 size_t map_offset = (m_data_offset / m_page_size) * m_page_size;
                 size_t relative_offset = m_data_offset - map_offset;
                 
                 size_t map_size = m_map_size + relative_offset;
-                
-                m_data_ptr = (pointer)mmap(0, map_size, PROT_READ, MAP_SHARED,
+            
+                m_data_ptr = (char*)mmap(0, map_size, PROT_READ, MAP_PRIVATE,
                                        m_file_desc, map_offset);
-                
-                size_t ptr_offset = relative_offset / sizeof(T);
-                //std::cerr << "Alloc: " << (void*)m_data_ptr << " " << num << std::endl;
-                return m_data_ptr + ptr_offset;
+
+                return (pointer)(m_data_ptr + relative_offset);
             }
         }
      
@@ -152,7 +149,6 @@ namespace Moses {
         equal &= a1.m_page_size == a2.m_page_size;
         equal &= a1.m_map_size == a2.m_map_size;
         equal &= a1.m_data_ptr == a2.m_data_ptr;
-        equal &= a1.m_data_size == a2.m_data_size;
         equal &= a1.m_data_offset == a2.m_data_offset;
         equal &= a1.m_fixed == a2.m_fixed;
         return equal;
