@@ -103,7 +103,7 @@ namespace Moses {
                 
                 size_t map_size = m_map_size + relative_offset;
             
-                m_data_ptr = (char*)mmap(0, map_size, PROT_READ, MAP_PRIVATE,
+                m_data_ptr = (char*)mmap(0, map_size, PROT_READ, MAP_SHARED,
                                        m_file_desc, map_offset);
 
                 return (pointer)(m_data_ptr + relative_offset);
@@ -116,8 +116,7 @@ namespace Moses {
             else {
                 size_t map_offset = (m_data_offset / m_page_size) * m_page_size;
                 size_t relative_offset = m_data_offset - map_offset;
-                size_t ptr_offset = relative_offset / sizeof(T);
-                munmap(p - ptr_offset, num * sizeof(T));    
+                munmap((pointer)((char*)p - relative_offset), num * sizeof(T));    
                 //std::cerr << "Dealloc: " << ((void*)(p - ptr_offset)) << " " << num << std::endl;
             }
             

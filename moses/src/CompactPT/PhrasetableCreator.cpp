@@ -229,11 +229,13 @@ void PhrasetableCreator::createHashes() {
         
         prevSourcePhrase = sourcePhraseString;
         
-        std::vector<std::string> sourceSymbols = Tokenize(tokens[0]);
-        for(std::vector<std::string>::iterator it = sourceSymbols.begin();
-            it != sourceSymbols.end(); it++)
-            addSourceSymbolId(*it);
-       
+        if(m_coding == REnc) {
+            std::vector<std::string> sourceSymbols = Tokenize(tokens[0]);
+            for(std::vector<std::string>::iterator it = sourceSymbols.begin();
+                it != sourceSymbols.end(); it++)
+                addSourceSymbolId(*it);
+        }
+        
         std::vector<std::string> targetSymbols = Tokenize(tokens[1]); 
         for(std::vector<std::string>::iterator it = targetSymbols.begin();
             it != targetSymbols.end(); it++)

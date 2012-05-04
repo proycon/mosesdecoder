@@ -54,6 +54,11 @@ int main(int argc,char **argv) {
   
   pt.Load(input, output, inFilePath, weight, tableLimit, languageModels, weightWP);
   
+  //std::FILE* pFile = std::fopen(inFilePath.c_str() , "r");
+  
+  //BlockHashIndex hash(10, 16);
+  //hash.LoadIndex(pFile);
+  
   std::string line;
   while(std::getline(std::cin, line)) {
     Phrase sentence(Input,0);
@@ -67,8 +72,11 @@ int main(int argc,char **argv) {
       for(size_t j = i; j < sentence.GetSize() && j-i < 7; j++) {
         const TargetPhraseCollection* tpc
           = pt.GetTargetPhraseCollection(sentence.GetSubString(WordsRange(i, j)));
-        if(tpc != NULL)
-          std::cout << tpc->GetSize() << std::endl; 
+        //if(tpc != NULL)
+        //  std::cout << tpc->GetSize() << std::endl;
+        //std::string sourcePhraseString = sentence.GetSubString(WordsRange(i, j)).GetStringRep(input);
+        //size_t index = hash[sourcePhraseString];
+        
       }
       
     boost::posix_time::ptime pt_end = boost::posix_time::microsec_clock::local_time();
@@ -78,5 +86,6 @@ int main(int argc,char **argv) {
     std::cout << "Time: " << d << std::endl;
     
     pt.CleanUp();
+    //hash.KeepNLastRanges(0.01, 0.2);
   }
 }

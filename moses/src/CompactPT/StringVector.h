@@ -58,7 +58,7 @@ class StringVector {
     virtual const ValueT* value_ptr(PosT i) const;
     
   public:
-    typedef ValueIteratorRange<typename std::vector<ValueT>::const_iterator> range;
+    typedef ValueIteratorRange<typename std::vector<ValueT, Allocator<ValueT> >::const_iterator> range;
     
     // ********** RangeIterator **********
     
@@ -139,8 +139,8 @@ class StringVector {
     iterator end() const;  
     
     PosT length(PosT i) const;
-    typename std::vector<ValueT>::const_iterator begin(PosT i) const;
-    typename std::vector<ValueT>::const_iterator end(PosT i) const;
+    typename std::vector<ValueT, Allocator<ValueT> >::const_iterator begin(PosT i) const;
+    typename std::vector<ValueT, Allocator<ValueT> >::const_iterator end(PosT i) const;
     
     void clear() {
       m_charArray.clear();
@@ -410,13 +410,13 @@ const ValueT* StringVector<ValueT, PosT, Allocator>::value_ptr(PosT i) const {
 }
 
 template<typename ValueT, typename PosT, template <typename> class Allocator>
-typename std::vector<ValueT>::const_iterator StringVector<ValueT, PosT, Allocator>::begin(PosT i) const {
-    return typename std::vector<ValueT>::const_iterator(value_ptr(i));
+typename std::vector<ValueT, Allocator<ValueT> >::const_iterator StringVector<ValueT, PosT, Allocator>::begin(PosT i) const {
+    return typename std::vector<ValueT, Allocator<ValueT> >::const_iterator(value_ptr(i));
 }    
 
 template<typename ValueT, typename PosT, template <typename> class Allocator>
-typename std::vector<ValueT>::const_iterator StringVector<ValueT, PosT, Allocator>::end(PosT i) const {
-    return typename std::vector<ValueT>::const_iterator(value_ptr(i) + length(i));
+typename std::vector<ValueT, Allocator<ValueT> >::const_iterator StringVector<ValueT, PosT, Allocator>::end(PosT i) const {
+    return typename std::vector<ValueT, Allocator<ValueT> >::const_iterator(value_ptr(i) + length(i));
 }    
 
 template<typename ValueT, typename PosT, template <typename> class Allocator>

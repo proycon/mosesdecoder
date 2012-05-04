@@ -167,12 +167,14 @@ class BlockHashIndex {
 #endif
 
       if(m_hashes.size() <= current) {
-          m_hashes.resize(current + 1);    
-          m_arrays.resize(current + 1);
+          m_hashes.resize(current + 1, 0);    
+          m_arrays.resize(current + 1, 0);
+          m_clocks.resize(current + 1, 0);
       }
       
       m_hashes[current] = hash;
       m_arrays[current] = pv;
+      m_clocks[current] = clock();
       m_queue.push(-current);
     }
 

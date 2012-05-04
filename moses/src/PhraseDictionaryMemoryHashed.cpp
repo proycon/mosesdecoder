@@ -151,7 +151,6 @@ PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhra
     for(TargetPhraseVector::iterator it = tpv->begin();
         it != nth; it++)
       phraseColl->Add(new TargetPhrase(*it));
-    phraseColl->NthElement(m_tableLimit);
     const_cast<PhraseDictionaryMemoryHashed*>(this)->CacheForCleanup(phraseColl);
     return phraseColl;
   }
