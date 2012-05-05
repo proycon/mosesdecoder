@@ -17,9 +17,7 @@ void printHelp()
 
 int main(int argc,char **argv) {
   std::cerr << "phraseTableTester by Marcin Junczys-Dowmunt\n";
-  
-  std::string inFilePath;
-  
+   
   if(1 >= argc) {
     printHelp();
     return 1;
@@ -36,7 +34,7 @@ int main(int argc,char **argv) {
       return 1;
     }
   }
-
+  
   size_t numScoreComponent = 5;  
   PhraseDictionaryMemoryHashed pt(numScoreComponent, MemoryHashedBinary, NULL);
   
@@ -82,10 +80,10 @@ int main(int argc,char **argv) {
     boost::posix_time::ptime pt_end = boost::posix_time::microsec_clock::local_time();
     boost::posix_time::time_duration delta = pt_end - pt_start;
     int d = delta.total_milliseconds();
-
+  
     std::cout << "Time: " << d << std::endl;
     
     pt.CleanUp();
     //hash.KeepNLastRanges(0.01, 0.2);
-  }
+   }
 }

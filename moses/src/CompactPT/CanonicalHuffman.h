@@ -2,10 +2,9 @@
 #define moses_CanonicalHuffman_h
 
 #include <string>
-
+#include <algorithm>
 #include <boost/dynamic_bitset.hpp>
-
-#include "Hufftree.h"
+#include <boost/unordered_map.hpp>
 
 namespace Moses {
 
@@ -30,28 +29,28 @@ class BitStream {
       m_mask(m_reverse ? 1 : 1 << m_valueBits-1), m_bitPos(0) { }
     
     size_t remainingBits() {
-        if(m_data.size() * m_valueBits < m_bitPos)
-            return 0;
-        return m_data.size() * m_valueBits - m_bitPos;
+      if(m_data.size() * m_valueBits < m_bitPos)
+        return 0;
+      return m_data.size() * m_valueBits - m_bitPos;
     }
     
     bool getNext() {
-        if(m_bitPos % m_valueBits == 0) {
-            if(m_iterator != m_data.end()) {
-                m_currentValue = *m_iterator++;
-            }
+      if(m_bitPos % m_valueBits == 0) {
+        if(m_iterator != m_data.end()) {
+            m_currentValue = *m_iterator++;
         }
-        else {
-            m_currentValue = m_reverse ? m_currentValue >> 1 : m_currentValue << 1;
-        } 
-        
-        m_bitPos++;
-        return (m_currentValue & m_mask);
+      }
+      else {
+        m_currentValue = m_reverse ? m_currentValue >> 1 : m_currentValue << 1;
+      } 
+      
+      m_bitPos++;
+      return (m_currentValue & m_mask);
     }
     
     void reset() {
-        m_iterator = m_data.begin();
-        m_bitPos = 0;
+      m_iterator = m_data.begin();
+      m_bitPos = 0;
     }
 };
 
@@ -68,56 +67,101 @@ class CanonicalHuffman {
     typedef boost::unordered_map<Data, boost::dynamic_bitset<> > EncodeMap;
     EncodeMap m_encodeMap;
     
-    template <class HT>
-    void init(HT& huffTree) {
-      std::cerr << "Canonical" << std::endl;
+    struct HeapSorter {
+      std::vector<size_t>& m_vec;
+      
+      HeapSorter(std::vector<size_t>& vec) : m_vec(vec) { }
+      
+      bool operator()(size_t a, size_t b) {
+        return -m_vec[a] < -m_vec[b];
+      }
+    };
+    
+    template <class Iterator>
+    void calcLengths(Iterator begin, Iterator end, std::vector<size_t>& lengths) {  
+      size_t n = std::distance(begin, end);
+      std::vector<size_t> A(2 * n, 0);
+      
+      m_symbols.resize(n);
+      size_t i = 0;
+      for(Iterator it = begin; it != end; it++) {
+        m_symbols[i] = it->first;
         
+        A[i] = n + i;
+        A[n + i] = it->second;
+        i++;
+      }
+      
+      HeapSorter hs(A);
+      std::make_heap(A.begin(), A.begin() + n, hs);
+      
+      size_t h = n;
+      size_t m1, m2;
+      while(h > 1) {
+        m1 = A[0];
+        std::pop_heap(A.begin(), A.begin() + h, hs);
+        
+        h--;
+         
+        m2 = A[0];
+        std::pop_heap(A.begin(), A.begin() + h, hs);
+      
+        A[h] = A[m1] + A[m2];
+        A[h-1] = h;
+        A[m1] = A[m2] = h;
+        
+        std::push_heap(A.begin(), A.begin() + h, hs);
+      }
+      
+      A[1] = 0;
+      for(size_t i = 2; i < 2*n; i++)
+        A[i] = A[A[i]] + 1;
+        
+      lengths.resize(n);
+      for(size_t i = 0; i < n; i++)
+        lengths[i] = A[i + n];
+    }
+       
+    void calcCodes(std::vector<size_t>& lengths) {
       std::vector<size_t> numLength;
-      for(typename HT::encodemap::iterator it = huffTree.m_encoding.begin();
-        it != huffTree.m_encoding.end(); it++) {
-        size_t length = it->second.size();
+      for(std::vector<size_t>::iterator it = lengths.begin();
+          it != lengths.end(); it++) {
+        size_t length = *it;
         if(numLength.size() <= length)
-          numLength.resize(length+1, 0);
+          numLength.resize(length + 1, 0);
         numLength[length]++;
       }
       
-      m_symbols.resize(huffTree.m_encoding.size());
       m_lengthIndex.resize(numLength.size());
       m_lengthIndex[0] = 0; 
-      for(size_t l = 1; l < numLength.size(); l++) {
-        m_lengthIndex[l] = m_lengthIndex[l-1] + numLength[l-1];
-        std::cerr << l << " " << numLength[l] << " " << m_lengthIndex[l] << std::endl;
-      }
+      for(size_t l = 1; l < numLength.size(); l++)
+        m_lengthIndex[l] = m_lengthIndex[l - 1] + numLength[l - 1];
       
       size_t maxLength = numLength.size() - 1;
       m_firstCodes.resize(maxLength + 1, 0);
       for(size_t l = maxLength - 1; l > 0; l--)
-        m_firstCodes[l] = (m_firstCodes[l+1] + numLength[l+1])/2;
+        m_firstCodes[l] = (m_firstCodes[l + 1] + numLength[l + 1]) / 2;
       
-      for(size_t l = 1; l < m_firstCodes.size(); l++) {
-        if(numLength[l]) {
-          boost::dynamic_bitset<> x(l, m_firstCodes[l]);
-          std::cerr << l << " " << x << std::endl;
-        }
-      }
+      std::vector<Data> t_symbols;
+      t_symbols.resize(lengths.size());
       
       std::vector<size_t> nextCode = m_firstCodes;
-      
-      for(typename HT::encodemap::iterator it = huffTree.m_encoding.begin();
-        it != huffTree.m_encoding.end(); it++) {
-        
-        Data data = it->first;
-        size_t length = it->second.size();
+      for(size_t i = 0; i < lengths.size(); i++) {    
+        Data data = m_symbols[i];
+        size_t length = lengths[i];
         
         size_t pos = m_lengthIndex[length]
                      + (nextCode[length] - m_firstCodes[length]);
-        m_symbols[pos] = data;
-        
+        t_symbols[pos] = data;
+
         nextCode[length] = nextCode[length] + 1;
       }
+      
+      m_symbols.swap(t_symbols);
     }
     
   public:
+
     CanonicalHuffman(std::FILE* pFile, bool forEncoding = false) {
       load(pFile);
       
@@ -127,37 +171,24 @@ class CanonicalHuffman {
     
     template <class Iterator>
     CanonicalHuffman(Iterator begin, Iterator end, bool forEncoding = true) {
-      Hufftree<int, Data> temp(begin, end);
-      init(temp);
-
-      if(forEncoding)
-        createCodeMap();
-    }
-    
-    template <class HT>
-    CanonicalHuffman(HT& huffTree, bool forEncoding = true) {
-      init(huffTree);
+      std::vector<size_t> lengths;
+      calcLengths(begin, end, lengths);
+      calcCodes(lengths);
 
       if(forEncoding)
         createCodeMap();
     }
     
     void createCodeMap() {
-      size_t maxLength = m_lengthIndex.size() - 1;
-      for(size_t l = 1; l <= maxLength; l++) {
+      for(size_t l = 1; l < m_lengthIndex.size(); l++) {
         Code code = m_firstCodes[l];
-        
         size_t num = ((l+1 < m_lengthIndex.size()) ? m_lengthIndex[l+1]
                       : m_symbols.size()) - m_lengthIndex[l];
         
         for(size_t i = 0; i < num; i++) {
           Data data = m_symbols[m_lengthIndex[l] + i];  
           boost::dynamic_bitset<> bitCode(l, code);
-          m_encodeMap[data] = bitCode;
-          
-          //if(l <= 10)
-          //  std::cerr << l << " " << m_symbols[m_lengthIndex[l] + i] << " " << bitCode << std::endl;
-          //
+          m_encodeMap[data] = bitCode;  
           code++;
         }
       }
@@ -172,15 +203,11 @@ class CanonicalHuffman {
       if(bitStream.remainingBits()) {
         Code code = bitStream.getNext();
         size_t length = 1;
-        
-        while(code < m_firstCodes[length]) {
+        while(code < m_firstCodes[length++])
           code = 2 * code + bitStream.getNext();
-          length++;
-        }
         
         size_t symbolIndex = m_lengthIndex[length]
-                             + (code - m_firstCodes[length]);
-                               
+                             + (code - m_firstCodes[length]);  
         return m_symbols[symbolIndex];
       }   
       return Data();

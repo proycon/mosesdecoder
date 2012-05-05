@@ -20,10 +20,9 @@
 #include "Sentence.h"
 #include "PrefixTreeMap.h"
 
-#include "CompactPT/HashIndex.h"
+#include "CompactPT/BlockHashIndex.h"
+#include "CompactPT/CanonicalHuffman.h"
 #include "CompactPT/StringVector.h"
-#include "CompactPT/Hufftree.h"
-#include "CompactPT/MmapAllocator.h"
 
 namespace Moses
 {
@@ -121,8 +120,8 @@ private:
   std::string MakeKey(const Phrase& f, const Phrase& e, const Phrase& c) const;
   std::string MakeKey(const std::string& f, const std::string& e, const std::string& c) const;
     
-  HashIndex<std::allocator, MmapAllocator> m_hash;
-  Hufftree<int, float>* m_tree;
+  BlockHashIndex m_hash;
+  CanonicalHuffman<float>* m_tree;
   StringVector<unsigned char, unsigned long, MmapAllocator> m_scores;
 };
 
