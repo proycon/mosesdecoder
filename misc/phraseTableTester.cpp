@@ -18,6 +18,7 @@ void printHelp()
 int main(int argc,char **argv) {
   std::cerr << "phraseTableTester by Marcin Junczys-Dowmunt\n";
    
+  std::string inFilePath;
   if(1 >= argc) {
     printHelp();
     return 1;
