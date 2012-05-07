@@ -22,11 +22,17 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     m_srcHash(m_orderBits, m_fingerPrintBits),
     m_rnkHash(m_orderBits, m_fingerPrintBits),
 #endif
-    m_origSymbolCount(0), m_origScoreCount(0), m_origAlignCount(0),
+    m_multipleScoreTrees(true),
     m_lastFlushedLine(-1), m_lastFlushedSourceNum(0),
     m_lastFlushedSourcePhrase("")
 {
     addTargetSymbolId(m_phraseStopSymbol);
+    
+    m_scoreCounters.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
+    for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
+        it != m_scoreCounters.end(); it++)
+        *it = new ScoreCounter();
+    m_scoreTrees.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
     
     createHashes();
     
@@ -53,7 +59,9 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     std::cerr << "EncodedPhrases: " << m_encodedTargetPhrases.size() << std::endl;
         
     std::cerr << "SymbolCounter: " << m_symbolCounter.size() << std::endl;
-    std::cerr << "ScoreCounter: " << m_scoreCounter.size() << std::endl;
+    for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
+        it != m_scoreCounters.end(); it++)
+        std::cerr << "ScoreCounter: " << (*it)->size() << std::endl;
     std::cerr << "AlignCounter: " << m_alignCounter.size() << std::endl;
     
     calcHuffmanCodes();
@@ -102,7 +110,12 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     targetSymbols.save(m_outFile);
     
     m_symbolTree->save(m_outFile);
-    m_scoreTree->save(m_outFile);
+    
+    std::fwrite(&m_multipleScoreTrees, sizeof(m_multipleScoreTrees), 1, m_outFile);
+    size_t numScoreTrees = m_scoreTrees.size();
+    for(size_t i = 0; i < numScoreTrees; i++)
+        m_scoreTrees[i]->save(m_outFile);
+    
     m_alignTree->save(m_outFile);
     size_t phraseSize = m_compressedTargetPhrases.save(m_outFile);
     std::fclose(m_outFile);
@@ -129,7 +142,7 @@ void PhrasetableCreator::loadLexicalTable(std::string filePath) {
     
     std::string srcWord = "";
     size_t srcIdx = 0;
-    for(typename std::vector<SrcTrgProb>::iterator it = t_lexTable.begin();
+    for(std::vector<SrcTrgProb>::iterator it = t_lexTable.begin();
         it != t_lexTable.end(); it++) {
       
         if(it->first.first != srcWord) {
@@ -318,8 +331,6 @@ void PhrasetableCreator::calcHuffmanCodes() {
         }
         float bits = float(sumall)/sum;
         std::cerr << bits << " bits per encoded symbol" << std::endl;
-        std::cerr << (float(sumall)/m_origSymbolCount)
-            << " bits per original symbol" << std::endl;
         
         float entropy = 0;
         for(SymbolCounter::iterator it = m_symbolCounter.begin();
@@ -328,24 +339,19 @@ void PhrasetableCreator::calcHuffmanCodes() {
                        * log(float(it->second)/float(sum))/log(2);
         }
         std::cerr << "Entropy for encoded symbols: " << entropy << std::endl;
-        std::cerr << "Entropy for original symbols: "
-            <<  (entropy*sum/m_origSymbolCount) << std::endl;
         
     }
     
-    std::cerr << "Creating Huffman codes for " << m_scoreCounter.size()
-        << " scores" << std::endl;
-    m_scoreTree = new ScoreTree(m_scoreCounter.begin(), m_scoreCounter.end());
-    {  
-        size_t sum = 0, sumall = 0;
-        for(ScoreCounter::iterator it = m_scoreCounter.begin();
-            it != m_scoreCounter.end(); it++) {
-            sumall += it->second * m_scoreTree->encode(it->first).size();
-            sum    += it->second;
-        }
-        std::cerr << double(sumall)/sum << " bits per score" << std::endl;
+    std::vector<ScoreTree*>::iterator treeIt = m_scoreTrees.begin();
+    for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
+        it != m_scoreCounters.end(); it++) {
+        
+        std::cerr << "Creating Huffman codes for " << (*it)->size()
+            << " scores" << std::endl;
+        
+        *treeIt = new ScoreTree((*it)->begin(), (*it)->end());
+        treeIt++;
     }
-
     std::cerr << "Creating Huffman codes for " << m_alignCounter.size()
         << " alignment points" << std::endl;
     m_alignTree = new AlignTree(m_alignCounter.begin(), m_alignCounter.end());
@@ -359,8 +365,6 @@ void PhrasetableCreator::calcHuffmanCodes() {
         
         float bits = float(sumall)/sum;
         std::cerr << bits << " bits per encoded alignment point" << std::endl;
-        std::cerr << (bits*sum/m_origAlignCount)
-            << " bits per original alignment point" << std::endl;
         
         float entropy = 0;
         for(AlignCounter::iterator it = m_alignCounter.begin();
@@ -369,8 +373,6 @@ void PhrasetableCreator::calcHuffmanCodes() {
                        * log(float(it->second)/float(sum))/log(2);
         }
         std::cerr << "Entropy for encoded alignment point: " << entropy << std::endl;
-        std::cerr << "Entropy for original alignment point: "
-            <<  (entropy*sum/m_origAlignCount) << std::endl;
     }
 }
 
@@ -623,11 +625,12 @@ void PhrasetableCreator::encodeTargetPhrasePREnc(std::vector<std::string>& s,
 void PhrasetableCreator::encodeScores(std::vector<float>& scores, std::ostream& os) {
     size_t c = 0;
     float score;
+    
     while(c < scores.size()) {
         score = scores[c];
         score = FloorScore(TransformScore(score));
         os.write((char*)&score, sizeof(score));
-        m_scoreCounter.increase(score);
+        m_scoreCounters[m_multipleScoreTrees ? c : 0]->increase(score);
         c++;
     }
 }
@@ -662,15 +665,6 @@ std::string PhrasetableCreator::encodeLine(std::vector<std::string>& tokens) {
     std::vector<size_t> positions = Tokenize<size_t>(alignmentStr, " \t-");
     for(size_t i = 0; i < positions.size(); i += 2) {
       a.insert(AlignPoint(positions[i], positions[i+1]));
-    }
-    
-    {
-#ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
-#endif
-        m_origSymbolCount += t.size();
-        m_origScoreCount += scores.size();
-        m_origAlignCount += a.size();
     }
     
     std::stringstream encodedTargetPhrase;
@@ -759,10 +753,10 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
                         state = ReadSymbol;
                 }
                 else if(state == EncodeScore) {
-                    //size_t idx = (currScore-1) % scoreTypes;
                     //float closestScore = m_scoreCounts[idx].lowerBound(score);
                     //code = m_scoreTrees[idx]->encode(closestScore);
-                    code = m_scoreTree->encode(score);
+                    size_t idx = m_multipleScoreTrees ? currScore-1 : 0;
+                    code = m_scoreTrees[idx]->encode(score);
                     state = ReadScore;
                 }
                 else if(state == EncodeAlignment) {

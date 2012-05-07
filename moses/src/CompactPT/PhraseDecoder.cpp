@@ -114,43 +114,12 @@ size_t PhraseDecoder::load(std::FILE* in) {
   }
   
   m_targetSymbols.load(in);
-  m_symbolTree = new CanonicalHuffman<unsigned>(in, true);
   
-  //{  
-  //    size_t sum = 0, sumall = 0;
-  //    for(size_t i = 0; i < m_symbolTree->size(); i++) {
-  //        sumall += m_symbolTree->freq(i) * m_symbolTree->encode(m_symbolTree->data(i)).size();
-  //        sum    += m_symbolTree->freq(i);
-  //    }
-  //    std::cerr << double(sumall)/sum << " bits per symbol " << sum << " " << sumall << " " << m_symbolTree->size() << std::endl;
-  //}
-  
+  m_symbolTree = new CanonicalHuffman<unsigned>(in);
   m_scoreTree = new CanonicalHuffman<float>(in);
-  
   m_alignTree = new CanonicalHuffman<AlignPoint>(in);
   
-  //  {  
-  //    size_t sum = 0, sumall = 0;
-  //    for(size_t i = 0; i < m_alignTree->size(); i++) {
-  //        sumall += m_alignTree->freq(i) * m_alignTree->encode(m_alignTree->data(i)).size();
-  //        sum    += m_alignTree->freq(i);
-  //    }
-  //    std::cerr << double(sumall)/sum << " bits per align " << sum << " " << sumall << " " << m_alignTree->size() << std::endl;
-  //}
-
   size_t end = std::ftell(in);
-  return end - start;
-}
-
-size_t PhraseDecoder::save(std::FILE* out) {
-  size_t start = std::ftell(out);
-  
-  m_targetSymbols.save(out);
-  m_symbolTree->save(out);
-  m_scoreTree->save(out);
-  m_alignTree->save(out);
-  
-  size_t end = std::ftell(out);
   return end - start;
 }
     
@@ -172,7 +141,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   
   TargetPhraseVectorPtr tpv(new TargetPhraseVector());
 
-  unsigned phraseStopSymbol = 0; //m_targetSymbolsMap["__SPECIAL_STOP_SYMBOL__"];
+  unsigned phraseStopSymbol = 0;
   AlignPoint alignStopSymbol(-1, -1);
   
   std::vector<float> scores;
@@ -185,7 +154,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   
   TargetPhrase* targetPhrase;
   
-  BitStream<> encodedBitStream(encoded, true);
+  BitStream<> encodedBitStream(encoded);
   
   while(encodedBitStream.remainingBits()) {
      
@@ -325,9 +294,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
         break;
       
       state = New;
-    }
-
-    
+    }    
   }
   
   if(m_coding == PREnc)

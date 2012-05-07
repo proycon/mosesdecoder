@@ -97,7 +97,6 @@ public:
             , float weightWP);
   
   bool LoadBinary(std::string filePath);
-  bool SaveBinary(std::string filePath);
 
   const TargetPhraseCollection* GetTargetPhraseCollection(const Phrase &source) const;
 

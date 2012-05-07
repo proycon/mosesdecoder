@@ -8,52 +8,6 @@
 
 namespace Moses {
 
-template <class Container = std::string>
-class BitStream {
-  private:
-    Container& m_data;
-    bool m_reverse;
-    
-    typename Container::const_iterator m_iterator;
-    typename Container::value_type m_currentValue;
-    
-    size_t m_bitPos;
-    size_t m_valueBits;
-    
-    typename Container::value_type m_mask;
-    
-  public:
-    BitStream(Container &data, bool reverse = false)
-    : m_data(data), m_iterator(m_data.begin()), m_reverse(reverse),
-      m_valueBits(sizeof(typename Container::value_type) * 8),
-      m_mask(m_reverse ? 1 : 1 << m_valueBits-1), m_bitPos(0) { }
-    
-    size_t remainingBits() {
-      if(m_data.size() * m_valueBits < m_bitPos)
-        return 0;
-      return m_data.size() * m_valueBits - m_bitPos;
-    }
-    
-    bool getNext() {
-      if(m_bitPos % m_valueBits == 0) {
-        if(m_iterator != m_data.end()) {
-            m_currentValue = *m_iterator++;
-        }
-      }
-      else {
-        m_currentValue = m_reverse ? m_currentValue >> 1 : m_currentValue << 1;
-      } 
-      
-      m_bitPos++;
-      return (m_currentValue & m_mask);
-    }
-    
-    void reset() {
-      m_iterator = m_data.begin();
-      m_bitPos = 0;
-    }
-};
-
 template<typename PosType, typename DataType> class Hufftree;
 
 template <typename Data, typename Code = size_t>
@@ -67,18 +21,18 @@ class CanonicalHuffman {
     typedef boost::unordered_map<Data, boost::dynamic_bitset<> > EncodeMap;
     EncodeMap m_encodeMap;
     
-    struct HeapSorter {
+    struct MinHeapSorter {
       std::vector<size_t>& m_vec;
       
-      HeapSorter(std::vector<size_t>& vec) : m_vec(vec) { }
+      MinHeapSorter(std::vector<size_t>& vec) : m_vec(vec) { }
       
       bool operator()(size_t a, size_t b) {
-        return -m_vec[a] < -m_vec[b];
+        return m_vec[a] > m_vec[b];
       }
     };
     
     template <class Iterator>
-    void calcLengths(Iterator begin, Iterator end, std::vector<size_t>& lengths) {  
+    void calcLengths(Iterator begin, Iterator end, std::vector<size_t>& lengths) {
       size_t n = std::distance(begin, end);
       std::vector<size_t> A(2 * n, 0);
       
@@ -92,7 +46,12 @@ class CanonicalHuffman {
         i++;
       }
       
-      HeapSorter hs(A);
+      if(n == 1) {
+        lengths.push_back(1);
+        return;
+      }
+      
+      MinHeapSorter hs(A);
       std::make_heap(A.begin(), A.begin() + n, hs);
       
       size_t h = n;
@@ -121,7 +80,8 @@ class CanonicalHuffman {
       for(size_t i = 0; i < n; i++)
         lengths[i] = A[i + n];
     }
-       
+
+
     void calcCodes(std::vector<size_t>& lengths) {
       std::vector<size_t> numLength;
       for(std::vector<size_t>::iterator it = lengths.begin();
@@ -138,6 +98,7 @@ class CanonicalHuffman {
         m_lengthIndex[l] = m_lengthIndex[l - 1] + numLength[l - 1];
       
       size_t maxLength = numLength.size() - 1;
+      
       m_firstCodes.resize(maxLength + 1, 0);
       for(size_t l = maxLength - 1; l > 0; l--)
         m_firstCodes[l] = (m_firstCodes[l + 1] + numLength[l + 1]) / 2;
@@ -250,6 +211,51 @@ class CanonicalHuffman {
       return std::ftell(pFile) - start;
     }
     
+};
+
+template <class Container = std::string>
+class BitStream {
+  private:
+    Container& m_data;
+    
+    typename Container::const_iterator m_iterator;
+    typename Container::value_type m_currentValue;
+    
+    size_t m_bitPos;
+    size_t m_valueBits;
+    
+    typename Container::value_type m_mask;
+    
+  public:
+    BitStream(Container &data)
+    : m_data(data), m_iterator(m_data.begin()),
+      m_valueBits(sizeof(typename Container::value_type) * 8),
+      m_mask(1), m_bitPos(0) { }
+    
+    size_t remainingBits() {
+      if(m_data.size() * m_valueBits < m_bitPos)
+        return 0;
+      return m_data.size() * m_valueBits - m_bitPos;
+    }
+    
+    bool getNext() {
+      if(m_bitPos % m_valueBits == 0) {
+        if(m_iterator != m_data.end()) {
+          m_currentValue = *m_iterator++;
+        }
+      }
+      else {
+        m_currentValue = m_currentValue >> 1;
+      } 
+      
+      m_bitPos++;
+      return (m_currentValue & m_mask);
+    }
+    
+    void reset() {
+      m_iterator = m_data.begin();
+      m_bitPos = 0;
+    }
 };
 
 }

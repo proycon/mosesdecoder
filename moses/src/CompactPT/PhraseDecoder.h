@@ -101,7 +101,6 @@ class PhraseDecoder {
     ~PhraseDecoder();
      
     size_t load(std::FILE* in);
-    size_t save(std::FILE* out);
     
     TargetPhraseVectorPtr decodeCollection(std::string encoded,
                                              const Phrase &sourcePhrase,

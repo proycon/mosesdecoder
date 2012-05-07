@@ -94,7 +94,7 @@ class Counter {
         return m_freqMap.size();
     }
     
-    void limitSize(size_t maxSize) {
+    void quantize(size_t maxSize) {
 #ifdef WITH_THREADS
         boost::mutex::scoped_lock lock(m_mutex);
 #endif
@@ -222,25 +222,23 @@ class PhrasetableCreator {
     boost::unordered_map<std::string, unsigned> m_targetSymbolsMap;
     boost::unordered_map<std::string, unsigned> m_sourceSymbolsMap;
     
-    size_t m_origSymbolCount;
-    size_t m_origScoreCount;
-    size_t m_origAlignCount;
-    
     typedef Counter<unsigned> SymbolCounter;
     typedef Counter<float> ScoreCounter;
     typedef Counter<AlignPoint> AlignCounter;
-    
-    SymbolCounter m_symbolCounter;
-    ScoreCounter m_scoreCounter;
-    AlignCounter m_alignCounter;
     
     typedef CanonicalHuffman<unsigned> SymbolTree;
     typedef CanonicalHuffman<float> ScoreTree;
     typedef CanonicalHuffman<AlignPoint> AlignTree;
     
+    SymbolCounter m_symbolCounter;
     SymbolTree* m_symbolTree;
-    ScoreTree* m_scoreTree;
+    
+    AlignCounter m_alignCounter;
     AlignTree* m_alignTree; 
+    
+    bool m_multipleScoreTrees;
+    std::vector<ScoreCounter*> m_scoreCounters;
+    std::vector<ScoreTree*> m_scoreTrees;
     
     StringVector<unsigned char, unsigned long, MmapAllocator>
         m_compressedTargetPhrases;

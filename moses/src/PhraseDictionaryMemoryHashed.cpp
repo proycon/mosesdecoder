@@ -89,18 +89,6 @@ bool PhraseDictionaryMemoryHashed::LoadBinary(std::string filePath) {
     //return hashSize && coderSize && phraseSize;
 }
 
-bool PhraseDictionaryMemoryHashed::SaveBinary(std::string filePath) {
-    
-    std::FILE* pFile = std::fopen(filePath.c_str() , "w");
-    size_t hashSize = m_hash.Save(pFile);
-    size_t coderSize = m_phraseDecoder->save(pFile);
-    size_t phraseSize = m_targetPhrases.save(pFile);
-    std::fclose(pFile);
-    
-    return hashSize && coderSize && phraseSize;
-}
-
-
 TargetPhraseVectorPtr
 PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
                                                            &sourcePhrase) {
