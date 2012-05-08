@@ -14,10 +14,11 @@ PhraseDecoder::PhraseDecoder(
   float weightWP,
   const LMList* languageModels
 )
-  : m_coding(None), m_containsAlignmentInfo(true), m_symbolTree(0),
-  m_scoreTree(0), m_alignTree(0), m_phraseDictionary(phraseDictionary),
-  m_input(input), m_output(output), m_feature(feature),
-  m_numScoreComponent(numScoreComponent), m_weight(weight),
+  : m_coding(None), m_numScoreComponent(numScoreComponent),
+  m_containsAlignmentInfo(true), m_symbolTree(0), m_multipleScoreTrees(false),
+  m_scoreTrees(1), m_alignTree(0),
+  m_phraseDictionary(phraseDictionary), m_input(input), m_output(output),
+  m_feature(feature), m_weight(weight),
   m_weightWP(weightWP), m_languageModels(languageModels)
 { }
 
@@ -25,8 +26,9 @@ PhraseDecoder::~PhraseDecoder() {
   if(m_symbolTree)
     delete m_symbolTree;
   
-  if(m_scoreTree)
-    delete m_scoreTree;
+  for(size_t i = 0; i < m_scoreTrees.size(); i++)
+    if(m_scoreTrees[i])
+      delete m_scoreTrees[i];
   
   if(m_alignTree)
     delete m_alignTree;
@@ -116,7 +118,18 @@ size_t PhraseDecoder::load(std::FILE* in) {
   m_targetSymbols.load(in);
   
   m_symbolTree = new CanonicalHuffman<unsigned>(in);
-  m_scoreTree = new CanonicalHuffman<float>(in);
+  
+  std::fread(&m_multipleScoreTrees, sizeof(m_multipleScoreTrees), 1, in);
+  if(m_multipleScoreTrees) {
+    m_scoreTrees.resize(m_numScoreComponent);
+    for(size_t i = 0; i < m_numScoreComponent; i++)
+      m_scoreTrees[i] = new CanonicalHuffman<float>(in);
+  }
+  else {
+    m_scoreTrees.resize(1);
+    m_scoreTrees[0] = new CanonicalHuffman<float>(in);
+  }
+  
   m_alignTree = new CanonicalHuffman<AlignPoint>(in);
   
   size_t end = std::ftell(in);
@@ -263,7 +276,8 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
       }
     }
     else if(state == Score) {
-      float score = m_scoreTree->nextSymbol(encodedBitStream);
+      size_t idx = m_multipleScoreTrees ? scores.size() : 0;
+      float score = m_scoreTrees[idx]->nextSymbol(encodedBitStream);
       scores.push_back(score);
       
       if(scores.size() == m_numScoreComponent) {

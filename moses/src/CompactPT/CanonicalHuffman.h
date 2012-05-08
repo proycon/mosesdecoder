@@ -164,8 +164,10 @@ class CanonicalHuffman {
       if(bitStream.remainingBits()) {
         Code code = bitStream.getNext();
         size_t length = 1;
-        while(code < m_firstCodes[length++])
+        while(code < m_firstCodes[length]) {
           code = 2 * code + bitStream.getNext();
+          length++;
+        }
         
         size_t symbolIndex = m_lengthIndex[length]
                              + (code - m_firstCodes[length]);  

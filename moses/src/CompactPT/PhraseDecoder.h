@@ -49,8 +49,10 @@ class PhraseDecoder {
     std::vector<SrcTrg> m_lexicalTable;
     
     CanonicalHuffman<unsigned>* m_symbolTree;
-    CanonicalHuffman<float>* m_scoreTree;
     CanonicalHuffman<AlignPoint>* m_alignTree;
+    
+    bool m_multipleScoreTrees;
+    std::vector<CanonicalHuffman<float>*> m_scoreTrees;
     
     PhraseDictionaryMemoryHashed& m_phraseDictionary;   
     
