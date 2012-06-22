@@ -450,7 +450,7 @@ PosT StringVector<ValueT, PosT, Allocator>::RangeIterator::get_index() {
 template<typename ValueT, typename PosT, template <typename> class Allocator>
 typename StringVector<ValueT, PosT, Allocator>::range
   StringVector<ValueT, PosT, Allocator>::RangeIterator::dereference() const {
-    return StringVector<ValueT, PosT, Allocator>::range(
+    return typename StringVector<ValueT, PosT, Allocator>::range(
         m_container->begin(m_index),
         m_container->end(m_index)
     );

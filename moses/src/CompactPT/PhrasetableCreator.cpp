@@ -51,7 +51,9 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
         for(size_t i = 0; i < temp1.size(); i++)
             m_sourceSymbolsMap[temp1[i]] = i;
         
-        loadLexicalTable("/home/marcinj/Poleng/Wipo/coppa/model/lex.f2e");
+        size_t found = inPath.find_last_of("/\\");
+        std::string path = inPath.substr(0, found);
+        loadLexicalTable(path + "/lex.f2e");
     }
             
     encodeTargetPhrases();
