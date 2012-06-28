@@ -77,7 +77,7 @@ size_t BlockHashIndex::GetHash(size_t i, const char* key) {
     
   size_t idx = cmph_search(m_hashes[i], key, (cmph_uint32) strlen(key));
   
-  std::pair<size_t, size_t> orderPrint = m_arrays[i]->get(idx);
+  std::pair<size_t, size_t> orderPrint = m_arrays[i]->get(idx, m_orderBits, m_fingerPrintBits);
   m_clocks[i] = clock();
   
   if(GetFprint(key) == orderPrint.second)
@@ -233,8 +233,8 @@ void BlockHashIndex::LoadRange(size_t i) {
 #endif
   std::fseek(m_fileHandle, m_fileHandleStart + m_seekIndex[i], SEEK_SET);
   cmph_t* hash = cmph_load(m_fileHandle);
-  m_arrays[i] = new PairedPackedArray<>(m_orderBits,
-                                        m_fingerPrintBits, 0);
+  m_arrays[i] = new PairedPackedArray<>(0, m_orderBits,
+                                        m_fingerPrintBits);
   m_arrays[i]->load(m_fileHandle);
   
   m_hashes[i] = hash;

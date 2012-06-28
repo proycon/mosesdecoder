@@ -1,5 +1,5 @@
-#ifndef moses_PhraseCache_h
-#define moses_PhraseCache_h
+#ifndef moses_TargetPhraseCollectionCache_h
+#define moses_TargetPhraseCollectionCache_h
 
 #include <map>
 #include <set>

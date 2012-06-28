@@ -1,5 +1,5 @@
-#ifndef PACKEDARRAY_H__
-#define PACKEDARRAY_H__
+#ifndef moses_PackedArray_h
+#define moses_PackedArray_h
 
 #include <vector>
 #include <cmath>
@@ -11,7 +11,6 @@ namespace Moses {
 template <typename T = size_t, typename D = unsigned char>
 class PackedArray {
   protected:
-    static size_t m_bits;
     static size_t m_dataBits;
     
     size_t m_size;
@@ -25,11 +24,8 @@ class PackedArray {
         m_storage = new D[0];
     }
     
-    PackedArray(size_t bits, size_t size) {
-        m_bits = bits;
-        m_size = size;
-        
-        m_storageSize = ceil(float(m_bits * size) / float(m_dataBits));
+    PackedArray(size_t size, size_t bits) : m_size(size) {  
+        m_storageSize = ceil(float(bits * size) / float(m_dataBits));
         m_storage = new D[m_storageSize];
     }
     
@@ -49,15 +45,15 @@ class PackedArray {
         m_storage = 0;
     }
     
-    T get(size_t i) const {
+    T get(size_t i, size_t bits) const {
         T out = 0;
         
-        size_t bitstart = (i * m_bits);
+        size_t bitstart = (i * bits);
         size_t bitpos = bitstart;
         
-        size_t zero = ((1ul << (m_bits)) - 1);
+        size_t zero = ((1ul << (bits)) - 1);
         
-        while(bitpos - bitstart < m_bits) {
+        while(bitpos - bitstart < bits) {
             size_t pos = bitpos / m_dataBits;
             size_t off = bitpos % m_dataBits;
                
@@ -70,15 +66,15 @@ class PackedArray {
         return out;
     }
     
-    void set(size_t i, T v) {
-        size_t bitstart = (i * m_bits);
+    void set(size_t i, T v, size_t bits) {
+        size_t bitstart = (i * bits);
         size_t bitpos = bitstart;
         
-        while(bitpos - bitstart < m_bits) {
+        while(bitpos - bitstart < bits) {
             size_t pos = bitpos / m_dataBits;
             size_t off = bitpos % m_dataBits;
             
-            size_t rest = m_bits - (bitpos - bitstart);
+            size_t rest = bits - (bitpos - bitstart);
             D zero = ~((1ul << (rest + off)) - 1) | ((1ul << off) - 1);
             
             m_storage[pos] &= zero;
@@ -127,51 +123,37 @@ class PackedArray {
 };
 
 template <typename T, typename D>
-size_t PackedArray<T, D>::m_bits = 26;
-
-template <typename T, typename D>
 size_t PackedArray<T, D>::m_dataBits = sizeof(D)*8;
 
+/**************************************************************************/
+
 template <typename T = size_t, typename D = unsigned char>
-class PairedPackedArray : public PackedArray<T,D> {
-  private:
-    static size_t m_bits1;
-    static size_t m_bits2;
-    
+class PairedPackedArray : public PackedArray<T,D> {    
   public:
-    PairedPackedArray() : PackedArray<T,D>(m_bits1 + m_bits2, 0) {}
+    PairedPackedArray() : PackedArray<T,D>() {}
     
-    PairedPackedArray(size_t bits1, size_t bits2, size_t size)
-    : PackedArray<T, D>(bits1 + bits2, size) {
-        m_bits1 = bits1;
-        m_bits2 = bits2;
+    PairedPackedArray(size_t size, size_t bits1, size_t bits2)
+    : PackedArray<T, D>(size, bits1 + bits2) { }
+    
+    void set(size_t i, T a, T b, size_t bits1, size_t bits2) {
+        T c = 0;
+        c = a | (b << bits1);
+        PackedArray<T,D>::set(i, c, bits1 + bits2);
     }
     
-    void set(size_t i, T a, T b) {
+    void set(size_t i, std::pair<T,T> p, size_t bits1, size_t bits2) {
         T c = 0;
-        c = a | (b << m_bits1);
-        PackedArray<T,D>::set(i, c);
-    }
-    
-    void set(size_t i, std::pair<T,T> p) {
-        T c = 0;
-        c = p.second | (p.first << m_bits1);
+        c = p.second | (p.first << bits1);
         PackedArray<T, D>::set(i, c);
     }
     
-    std::pair<T, T> get(size_t i) {
-        T v = PackedArray<T, D>::get(i);
-        T a = v & ((1 << m_bits1) - 1);
-        T b = v >> m_bits1;
+    std::pair<T, T> get(size_t i, size_t bits1, size_t bits2) {
+        T v = PackedArray<T, D>::get(i, bits1 + bits2);
+        T a = v & ((1 << bits1) - 1);
+        T b = v >> bits1;
         return std::pair<T, T>(a, b);
     }
 };
-
-template <typename T, typename D>
-size_t PairedPackedArray<T, D>::m_bits1 = 10;
-
-template <typename T, typename D>
-size_t PairedPackedArray<T, D>::m_bits2 = 16;
 
 }
 

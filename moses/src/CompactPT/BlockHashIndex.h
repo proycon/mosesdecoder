@@ -158,7 +158,7 @@ class BlockHashIndex {
           size_t idx = cmph_search(hash, temp.c_str(),
                                    (cmph_uint32) temp.size());
 
-          pv->set(idx, i, fprint);
+          pv->set(idx, i, fprint, m_orderBits, m_fingerPrintBits);
           i++;
       }
       
