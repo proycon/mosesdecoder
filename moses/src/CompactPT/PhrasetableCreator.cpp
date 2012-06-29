@@ -8,24 +8,38 @@ size_t maxPhrases = 0;
     
 std::string PhrasetableCreator::m_phraseStopSymbol = "__SPECIAL_STOP_SYMBOL__";
     
-PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
-                                       Coding coding, size_t orderBits,
-                                       size_t fingerPrintBits)
-  : m_inPath(inPath), m_outPath(outPath),
-    m_outFile(std::fopen(m_outPath.c_str(), "w")), m_numScoreComponent(5),
-    m_coding(coding), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits),
-    m_containsAlignmentInfo(true), m_multipleScoreTrees(true), m_maxPhraseLength(7),
+PhrasetableCreator::PhrasetableCreator(std::string inPath,
+                                       std::string outPath,
+                                       size_t numScoreComponent,
+                                       Coding coding,
+                                       size_t orderBits,
+                                       size_t fingerPrintBits,
+                                       bool containsAlignmentInfo,
+                                       bool multipleScoreTrees,
+                                       size_t quantize,
 #ifdef WITH_THREADS
-    m_threads(6),
+                                       size_t threads
+#endif
+                                       )
+  : m_inPath(inPath), m_outPath(outPath),
+    m_outFile(std::fopen(m_outPath.c_str(), "w")), m_numScoreComponent(numScoreComponent),
+    m_coding(coding), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits),
+    m_containsAlignmentInfo(containsAlignmentInfo),
+    m_multipleScoreTrees(multipleScoreTrees),
+    m_quantize(quantize),
+#ifdef WITH_THREADS
+    m_threads(threads),
     m_srcHash(m_orderBits, m_fingerPrintBits, m_threads/2),
     m_rnkHash(m_orderBits, m_fingerPrintBits, m_threads/2),
 #else
     m_srcHash(m_orderBits, m_fingerPrintBits),
     m_rnkHash(m_orderBits, m_fingerPrintBits),
 #endif
+    m_maxPhraseLength(0),
     m_lastFlushedLine(-1), m_lastFlushedSourceNum(0),
     m_lastFlushedSourcePhrase("")
 {
+    
     addTargetSymbolId(m_phraseStopSymbol);
     
     m_scoreCounters.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
@@ -34,6 +48,7 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
         *it = new ScoreCounter();
     m_scoreTrees.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
     
+    // 0th pass
     if(m_coding == REnc) {
         size_t found = inPath.find_last_of("/\\");
         std::string path = inPath.substr(0, found);
@@ -42,7 +57,9 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     else if(m_coding == PREnc) {
         createRankHash();
     }
-            
+    
+    // 1st pass
+    m_srcHash.BeginSave(m_outFile);   
     encodeTargetPhrases();
     
     std::cerr << "EncodedPhrases: " << m_encodedTargetPhrases.size() << std::endl;
@@ -54,10 +71,13 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     std::cerr << "AlignCounter: " << m_alignCounter.size() << std::endl;
     
     calcHuffmanCodes();
+    
+    // 2nd pass
     compressTargetPhrases();
     
     std::cerr << "CompressedPhrases: " << m_compressedTargetPhrases.size() << std::endl;
 
+    // Save, put that somewhere else
     std::fwrite(&m_coding, sizeof(m_coding), 1, m_outFile);
     if(m_coding == REnc) {
         std::vector<std::string> temp1;
@@ -187,7 +207,6 @@ void PhrasetableCreator::createRankHash() {
     size_t line_num = 0;
     size_t numElement = NOT_FOUND;
     
-    // poprawić
     size_t step = 1ul << m_orderBits;
     
     std::vector<std::string> sourceTargetPhrases;
@@ -461,6 +480,7 @@ void PhrasetableCreator::encodeTargetPhraseNone(std::vector<std::string>& t,
     int j = 0;
     while(j < t.size()) {
         unsigned targetSymbolId = getOrAddTargetSymbolId(t[j]);
+        
         m_symbolCounter.increase(targetSymbolId);
         os.write((char*)&targetSymbolId, sizeof(targetSymbolId));
         j++;
@@ -642,6 +662,13 @@ std::string PhrasetableCreator::encodeLine(std::vector<std::string>& tokens) {
     
     size_t ownRank = Scan<size_t>(tokens[5]); 
     
+    std::vector<std::string> s = Tokenize(sourcePhraseStr);
+    
+    // is it worth it to put a lock around that?
+    size_t phraseLength = s.size();
+    if(m_maxPhraseLength < phraseLength)
+        m_maxPhraseLength = phraseLength;
+    
     std::vector<std::string> t = Tokenize(targetPhraseStr);
     std::vector<float> scores = Tokenize<float>(scoresStr);
     
@@ -654,11 +681,9 @@ std::string PhrasetableCreator::encodeLine(std::vector<std::string>& tokens) {
     std::stringstream encodedTargetPhrase;
     
     if(m_coding == PREnc) {
-        std::vector<std::string> s = Tokenize(sourcePhraseStr);
         encodeTargetPhrasePREnc(s, t, a, ownRank, encodedTargetPhrase);
     }
     else if(m_coding == REnc) {
-        std::vector<std::string> s = Tokenize(sourcePhraseStr);
         encodeTargetPhraseREnc(s, t, a, encodedTargetPhrase);        
     }
     else {
@@ -691,7 +716,7 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
     
     std::string output;
     BitStream<> bitstream(output);
-    
+
     unsigned symbol;
     float score;
     size_t currScore = 0;

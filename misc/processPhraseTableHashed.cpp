@@ -20,7 +20,7 @@ int main(int argc,char **argv) {
     
   std::string inFilePath;
   std::string outFilePath("out");
-  PhrasetableCreator::Coding coding = PhrasetableCreator::None;
+  PhrasetableCreator::Coding coding = PhrasetableCreator::PREnc;
   
   if(1 >= argc) {
     printHelp();
@@ -54,5 +54,19 @@ int main(int argc,char **argv) {
   }
   
   size_t numScoreComponent = 5;  
-  PhrasetableCreator(inFilePath, outFilePath, coding, 10, 16);
+  size_t orderBits = 10;
+  size_t fingerprintBits = 16;
+  bool containsAlignmentInfo = true;
+  bool multipleScoreTrees = true;
+  size_t quantize = 0;
+  size_t threads = 6;
+  
+  PhrasetableCreator(inFilePath, outFilePath, numScoreComponent,
+                     coding, orderBits, fingerprintBits,
+                     containsAlignmentInfo, multipleScoreTrees,
+                     quantize,
+#ifdef WITH_THREADS
+                     threads
+#endif                     
+                     );
 }

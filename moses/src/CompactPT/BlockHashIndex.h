@@ -149,7 +149,7 @@ class BlockHashIndex {
       cmph_config_destroy(config);
       
       PairedPackedArray<> *pv =
-        new PairedPackedArray<>(m_orderBits, m_fingerPrintBits, keys.size());
+        new PairedPackedArray<>(keys.size(), m_orderBits, m_fingerPrintBits);
 
       size_t i = 0;
       for(typename Keys::iterator it = keys.begin(); it != keys.end(); it++) {

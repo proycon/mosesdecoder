@@ -260,14 +260,10 @@ class BitStream {
       for(int j = code.size()-1; j >= 0; j--) {    
         if(m_bitPos % m_valueBits == 0) {
           m_data.push_back(0);
-          if(m_data.size() == 1)
-            m_iterator = m_data.begin();
-          else
-            m_iterator++;
         }
         
         if(code[j])
-          *m_iterator |= m_mask << (m_bitPos % m_valueBits);
+          m_data[m_data.size()-1] |= m_mask << (m_bitPos % m_valueBits);
       
         m_bitPos++;
       }

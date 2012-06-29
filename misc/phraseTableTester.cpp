@@ -71,8 +71,8 @@ int main(int argc,char **argv) {
       for(size_t j = i; j < sentence.GetSize() && j-i < 7; j++) {
         const TargetPhraseCollection* tpc
           = pt.GetTargetPhraseCollection(sentence.GetSubString(WordsRange(i, j)));
-        //if(tpc != NULL)
-        //  std::cout << tpc->GetSize() << std::endl;
+        if(tpc != NULL)
+          std::cout << *(tpc->GetCollection()[0]) << std::endl;
         //std::string sourcePhraseString = sentence.GetSubString(WordsRange(i, j)).GetStringRep(input);
         //size_t index = hash[sourcePhraseString];
         

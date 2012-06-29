@@ -17,6 +17,11 @@
 #include "CompactPT/StringVector.h"
 #include "CompactPT/CanonicalHuffman.h"
 
+// @TODO: Check speed for multithread, locking etc.
+// Save maxPhraseLength
+// Move code for saving to other function
+// Add quantization
+// Finish how containsAlignmentInfo works
 
 namespace Moses {
     
@@ -177,6 +182,9 @@ class PhrasetableCreator {
     size_t m_fingerPrintBits;
     bool m_containsAlignmentInfo;
     bool m_multipleScoreTrees;
+    size_t m_quantize;
+    
+    // @TODO:
     size_t m_maxPhraseLength;
     
     static std::string m_phraseStopSymbol;
@@ -221,6 +229,9 @@ class PhrasetableCreator {
     
     StringVector<unsigned char, unsigned long, MmapAllocator>
         m_encodedTargetPhrases;
+        
+    StringVector<unsigned char, unsigned long, MmapAllocator>
+        m_compressedTargetPhrases;
     
     boost::unordered_map<std::string, unsigned> m_targetSymbolsMap;
     boost::unordered_map<std::string, unsigned> m_sourceSymbolsMap;
@@ -241,9 +252,6 @@ class PhrasetableCreator {
     
     std::vector<ScoreCounter*> m_scoreCounters;
     std::vector<ScoreTree*> m_scoreTrees;
-    
-    StringVector<unsigned char, unsigned long, MmapAllocator>
-        m_compressedTargetPhrases;
     
     std::priority_queue<PackedItem> m_queue;
     long m_lastFlushedLine;
@@ -301,8 +309,19 @@ class PhrasetableCreator {
     
   public:
     
-    PhrasetableCreator(std::string inPath, std::string outPath,
-                       Coding coding, size_t orderBits, size_t fingerPrintBits);
+    PhrasetableCreator(std::string inPath,
+                       std::string outPath,
+                       size_t numScoreComponent = 5,
+                       Coding coding = PREnc,
+                       size_t orderBits = 10,
+                       size_t fingerPrintBits = 16,
+                       bool containsAlignmentInfo = true,
+                       bool multipleScoreTrees = true,
+                       size_t quantize = 0,
+#ifdef WITH_THREADS
+                       size_t threads = 2
+#endif
+                      );
     
     friend class EncodingTask;
     friend class CompressionTask;
