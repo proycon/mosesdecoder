@@ -220,7 +220,7 @@ class BitStream {
   private:
     Container& m_data;
     
-    typename Container::const_iterator m_iterator;
+    typename Container::iterator m_iterator;
     typename Container::value_type m_currentValue;
     
     size_t m_bitPos;
@@ -229,6 +229,7 @@ class BitStream {
     typename Container::value_type m_mask;
     
   public:
+    
     BitStream(Container &data)
     : m_data(data), m_iterator(m_data.begin()),
       m_valueBits(sizeof(typename Container::value_type) * 8),
@@ -254,9 +255,32 @@ class BitStream {
       return (m_currentValue & m_mask);
     }
     
+    void putCode(boost::dynamic_bitset<> code) {
+      
+      for(int j = code.size()-1; j >= 0; j--) {    
+        if(m_bitPos % m_valueBits == 0) {
+          m_data.push_back(0);
+          if(m_data.size() == 1)
+            m_iterator = m_data.begin();
+          else
+            m_iterator++;
+        }
+        
+        if(code[j])
+          *m_iterator |= m_mask << (m_bitPos % m_valueBits);
+      
+        m_bitPos++;
+      }
+      
+    }
+    
     void reset() {
       m_iterator = m_data.begin();
       m_bitPos = 0;
+    }
+    
+    Container& container() {
+      return m_data;
     }
 };
 

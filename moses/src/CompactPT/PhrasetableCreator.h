@@ -171,10 +171,13 @@ class PhrasetableCreator {
     
     std::FILE* m_outFile;
     
-    Coding m_coding;
     size_t m_numScoreComponent;
+    Coding m_coding;
     size_t m_orderBits;
     size_t m_fingerPrintBits;
+    bool m_containsAlignmentInfo;
+    bool m_multipleScoreTrees;
+    size_t m_maxPhraseLength;
     
     static std::string m_phraseStopSymbol;
     
@@ -236,7 +239,6 @@ class PhrasetableCreator {
     AlignCounter m_alignCounter;
     AlignTree* m_alignTree; 
     
-    bool m_multipleScoreTrees;
     std::vector<ScoreCounter*> m_scoreCounters;
     std::vector<ScoreTree*> m_scoreTrees;
     
@@ -247,6 +249,7 @@ class PhrasetableCreator {
     long m_lastFlushedLine;
     long m_lastFlushedSourceNum;
     std::string m_lastFlushedSourcePhrase;
+    std::vector<std::string> m_lastSourceRange;
     std::vector<std::string> m_lastCollection;
     
     void addSourceSymbolId(std::string& symbol);
@@ -254,6 +257,7 @@ class PhrasetableCreator {
     
     void addTargetSymbolId(std::string& symbol);
     unsigned getTargetSymbolId(std::string& symbol);
+    unsigned getOrAddTargetSymbolId(std::string& symbol);
     
     unsigned getRank(unsigned srcIdx, unsigned trgIdx);
     
@@ -264,8 +268,7 @@ class PhrasetableCreator {
     unsigned encodePREncSymbol1(unsigned symbol);
     unsigned encodePREncSymbol2(int lOff, int rOff, unsigned rank);
     
-    void encodeTargetPhraseNone(std::vector<std::string>& s,
-                                std::vector<std::string>& t,
+    void encodeTargetPhraseNone(std::vector<std::string>& t,
                                 std::set<AlignPoint>& a,
                                 std::ostream& os);
     
@@ -283,7 +286,7 @@ class PhrasetableCreator {
     
     void loadLexicalTable(std::string filePath);
     
-    void createHashes();
+    void createRankHash();
     void encodeTargetPhrases();
     void calcHuffmanCodes();
     void compressTargetPhrases();

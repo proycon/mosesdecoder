@@ -13,7 +13,8 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
                                        size_t fingerPrintBits)
   : m_inPath(inPath), m_outPath(outPath),
     m_outFile(std::fopen(m_outPath.c_str(), "w")), m_numScoreComponent(5),
-    m_coding(coding), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits), 
+    m_coding(coding), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits),
+    m_containsAlignmentInfo(true), m_multipleScoreTrees(true), m_maxPhraseLength(7),
 #ifdef WITH_THREADS
     m_threads(6),
     m_srcHash(m_orderBits, m_fingerPrintBits, m_threads/2),
@@ -22,7 +23,6 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     m_srcHash(m_orderBits, m_fingerPrintBits),
     m_rnkHash(m_orderBits, m_fingerPrintBits),
 #endif
-    m_multipleScoreTrees(true),
     m_lastFlushedLine(-1), m_lastFlushedSourceNum(0),
     m_lastFlushedSourcePhrase("")
 {
@@ -34,26 +34,13 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
         *it = new ScoreCounter();
     m_scoreTrees.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
     
-    createHashes();
-    
-    std::cerr << "srcHash: " << m_srcHash.GetSize() << std::endl;
-    std::cerr << "TargetSymbols: " << m_targetSymbolsMap.size() << std::endl;
-    
     if(m_coding == REnc) {
-        std::vector<std::string> temp1;
-        temp1.resize(m_sourceSymbolsMap.size());
-        for(boost::unordered_map<std::string, unsigned>::iterator it
-            = m_sourceSymbolsMap.begin(); it != m_sourceSymbolsMap.end(); it++)
-            temp1[it->second] = it->first;
-            
-        std::sort(temp1.begin(), temp1.end());
-        
-        for(size_t i = 0; i < temp1.size(); i++)
-            m_sourceSymbolsMap[temp1[i]] = i;
-        
         size_t found = inPath.find_last_of("/\\");
         std::string path = inPath.substr(0, found);
         loadLexicalTable(path + "/lex.f2e");
+    }
+    else if(m_coding == PREnc) {
+        createRankHash();
     }
             
     encodeTargetPhrases();
@@ -67,7 +54,6 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath, std::string outPath,
     std::cerr << "AlignCounter: " << m_alignCounter.size() << std::endl;
     
     calcHuffmanCodes();
-    
     compressTargetPhrases();
     
     std::cerr << "CompressedPhrases: " << m_compressedTargetPhrases.size() << std::endl;
@@ -131,46 +117,68 @@ void PhrasetableCreator::loadLexicalTable(std::string filePath) {
     std::string src, trg;
     float prob;
     
+    // Reading in the translation probability lexicon
+    
     while(lexIn >> trg >> src >> prob) {
         if(t_lexTable.size() % 10000 == 0)
             std::cerr << ".";
         t_lexTable.push_back(SrcTrgProb(SrcTrgString(src, trg), prob));
+        addSourceSymbolId(src);
+        addTargetSymbolId(trg);
     }
     std::cerr << std::endl;
+    
+    // Sorting lexicon by source words by lexicographical order, corresponding
+    // target words by decreasing probability.
     
     std::cerr << "Read in " << t_lexTable.size() << " lexical pairs" << std::endl;
     std::sort(t_lexTable.begin(), t_lexTable.end(), SrcTrgProbSorter());
     std::cerr << "Sorted" << std::endl;
+    
+    // Re-assigning source word ids in lexicographical order
+    
+    std::vector<std::string> temp1;
+    temp1.resize(m_sourceSymbolsMap.size());
+    for(boost::unordered_map<std::string, unsigned>::iterator it
+        = m_sourceSymbolsMap.begin(); it != m_sourceSymbolsMap.end(); it++)
+        temp1[it->second] = it->first;
+        
+    std::sort(temp1.begin(), temp1.end());
+    
+    for(size_t i = 0; i < temp1.size(); i++)
+        m_sourceSymbolsMap[temp1[i]] = i;
+    
+    // Building the lexicon based on source and target word ids
     
     std::string srcWord = "";
     size_t srcIdx = 0;
     for(std::vector<SrcTrgProb>::iterator it = t_lexTable.begin();
         it != t_lexTable.end(); it++) {
       
+        // If we encounter a new source word
         if(it->first.first != srcWord) {
             srcIdx = getSourceSymbolId(it->first.first);
-            if(srcIdx < m_sourceSymbolsMap.size()) {
-                if(srcIdx >= m_lexicalTableIndex.size())
-                    m_lexicalTableIndex.resize(srcIdx + 1);
-                m_lexicalTableIndex[srcIdx] = m_lexicalTable.size();
-            }
-        }
-        
-        size_t trgIdx = getTargetSymbolId(it->first.second);        
-        if(srcIdx < m_sourceSymbolsMap.size() && trgIdx < m_targetSymbolsMap.size()) {
-            m_lexicalTable.push_back(SrcTrg(srcIdx, trgIdx));
             
-            if(m_lexicalTable.size() % 10000 == 0)
-                std::cerr << ".";
+            // Store position of first translation
+            if(srcIdx >= m_lexicalTableIndex.size())
+                m_lexicalTableIndex.resize(srcIdx + 1);
+            m_lexicalTableIndex[srcIdx] = m_lexicalTable.size();
         }
         
+        // Store pair of source word and target word
+        size_t trgIdx = getTargetSymbolId(it->first.second);        
+        m_lexicalTable.push_back(SrcTrg(srcIdx, trgIdx));
+        
+        if(m_lexicalTable.size() % 10000 == 0)
+            std::cerr << ".";
+    
         srcWord = it->first.first;
     }
-    std::cerr << "Kept " << m_lexicalTable.size() << " lexical pairs" << std::endl;
+    std::cerr << "Loaded " << m_lexicalTable.size() << " lexical pairs" << std::endl;
     std::cerr << std::endl;
 }
-    
-void PhrasetableCreator::createHashes() {
+
+void PhrasetableCreator::createRankHash() {
     
     InputFileStream inFile(m_inPath);
      
@@ -182,27 +190,14 @@ void PhrasetableCreator::createHashes() {
     // poprawić
     size_t step = 1ul << m_orderBits;
     
-    std::vector<std::string> sourcePhrases;
     std::vector<std::string> sourceTargetPhrases;
 
-    m_srcHash.BeginSave(m_outFile);
-
     while(std::getline(inFile, line)) {
-        
-        if(sourcePhrases.size() == step) {
-            m_srcHash.AddRange(sourcePhrases);
-            m_srcHash.SaveLastRange();
-            m_srcHash.DropLastRange();
-            sourcePhrases.clear();
+        if(sourceTargetPhrases.size() == step) {
+            m_rnkHash.AddRange(sourceTargetPhrases);
+            sourceTargetPhrases.clear();
         }
-        
-        if(m_coding == PREnc) {
-            if(sourceTargetPhrases.size() == step) {
-                m_rnkHash.AddRange(sourceTargetPhrases);
-                sourceTargetPhrases.clear();
-            }
-        }
-        
+   
         std::vector<std::string> tokens = Tokenize( line , "\t" );
         
         if (numElement == NOT_FOUND) {
@@ -230,8 +225,6 @@ void PhrasetableCreator::createHashes() {
         }
        
         if(sourcePhraseString != prevSourcePhrase && prevSourcePhrase != "") {
-            sourcePhrases.push_back(Trim(prevSourcePhrase));
-            
             if(maxPhrases && phr_num > maxPhrases)
                 break;
             
@@ -244,41 +237,17 @@ void PhrasetableCreator::createHashes() {
         
         prevSourcePhrase = sourcePhraseString;
         
-        if(m_coding == REnc) {
-            std::vector<std::string> sourceSymbols = Tokenize(tokens[0]);
-            for(std::vector<std::string>::iterator it = sourceSymbols.begin();
-                it != sourceSymbols.end(); it++)
-                addSourceSymbolId(*it);
-        }
-        
-        std::vector<std::string> targetSymbols = Tokenize(tokens[1]); 
-        for(std::vector<std::string>::iterator it = targetSymbols.begin();
-            it != targetSymbols.end(); it++)
-            addTargetSymbolId(*it);
-       
-        if(m_coding == PREnc) {
-            std::string sourceTargetPhrase = Trim(tokens[0]) + "\t" + Trim(tokens[1]);
-            sourceTargetPhrases.push_back(sourceTargetPhrase);
-            m_ranks.push_back(Scan<unsigned>(tokens[5]));
-        }
+        std::string sourceTargetPhrase = Trim(tokens[0]) + "\t" + Trim(tokens[1]);
+        sourceTargetPhrases.push_back(sourceTargetPhrase);
+        m_ranks.push_back(Scan<unsigned>(tokens[5]));
     }
     
-    m_srcHash.AddRange(sourcePhrases);
-    
-    if(m_coding == PREnc)
-        m_rnkHash.AddRange(sourceTargetPhrases);
+    m_rnkHash.AddRange(sourceTargetPhrases);
     
 #ifdef WITH_THREADS
-    m_srcHash.WaitAll();
-    
-    if(m_coding == PREnc)
-        m_rnkHash.WaitAll();
+    m_rnkHash.WaitAll();
 #endif
-    
-    m_srcHash.SaveLastRange();
-    m_srcHash.DropLastRange();
-    m_srcHash.FinalizeSave();
-    
+
     std::cerr << std::endl;
 }
 
@@ -413,6 +382,22 @@ unsigned PhrasetableCreator::getTargetSymbolId(std::string& symbol) {
         return m_targetSymbolsMap.size();
 }
 
+unsigned PhrasetableCreator::getOrAddTargetSymbolId(std::string& symbol) {
+    #ifdef WITH_THREADS
+    boost::mutex::scoped_lock lock(m_mutex);
+    #endif
+    boost::unordered_map<std::string, unsigned>::iterator it
+        = m_targetSymbolsMap.find(symbol);
+        
+    if(it != m_targetSymbolsMap.end())   
+        return it->second;
+    else {
+        unsigned value = m_targetSymbolsMap.size();
+        m_targetSymbolsMap[symbol] = value;
+        return value;
+    }
+}
+
 unsigned PhrasetableCreator::getRank(unsigned srcIdx, unsigned trgIdx) {
   size_t srcTrgIdx = m_lexicalTableIndex[srcIdx];
   while(srcTrgIdx < m_lexicalTable.size()
@@ -468,15 +453,14 @@ unsigned PhrasetableCreator::encodePREncSymbol2(int left, int right, unsigned ra
   return symbol;
 }
 
-void PhrasetableCreator::encodeTargetPhraseNone(std::vector<std::string>& s,
-                                                std::vector<std::string>& t,
+void PhrasetableCreator::encodeTargetPhraseNone(std::vector<std::string>& t,
                                                 std::set<AlignPoint>& a,
                                                 std::ostream& os)
 {
     std::stringstream encodedTargetPhrase;
     int j = 0;
     while(j < t.size()) {
-        unsigned targetSymbolId = getTargetSymbolId(t[j]);
+        unsigned targetSymbolId = getOrAddTargetSymbolId(t[j]);
         m_symbolCounter.increase(targetSymbolId);
         os.write((char*)&targetSymbolId, sizeof(targetSymbolId));
         j++;
@@ -499,7 +483,7 @@ void PhrasetableCreator::encodeTargetPhraseREnc(std::vector<std::string>& s,
         a2[it->second].push_back(it->first);
 
     for(size_t i = 0; i < t.size(); i++) {
-        unsigned idxTarget = getTargetSymbolId(t[i]);
+        unsigned idxTarget = getOrAddTargetSymbolId(t[i]);
         unsigned encodedSymbol = -1;
         
         unsigned bestSrcPos = s.size();
@@ -610,7 +594,7 @@ void PhrasetableCreator::encodeTargetPhrasePREnc(std::vector<std::string>& s,
             j += encodedSymbolsLengths[j];
         }
         else {
-            unsigned targetSymbolId = getTargetSymbolId(t[j]);
+            unsigned targetSymbolId = getOrAddTargetSymbolId(t[j]);
             unsigned encodedSymbol = encodePREncSymbol1(targetSymbolId);
             m_symbolCounter.increase(encodedSymbol);
             os.write((char*)&encodedSymbol, sizeof(encodedSymbol));
@@ -658,9 +642,7 @@ std::string PhrasetableCreator::encodeLine(std::vector<std::string>& tokens) {
     
     size_t ownRank = Scan<size_t>(tokens[5]); 
     
-    std::vector<std::string> s = Tokenize(sourcePhraseStr);
     std::vector<std::string> t = Tokenize(targetPhraseStr);
-    
     std::vector<float> scores = Tokenize<float>(scoresStr);
     
     std::set<AlignPoint> a;
@@ -672,13 +654,15 @@ std::string PhrasetableCreator::encodeLine(std::vector<std::string>& tokens) {
     std::stringstream encodedTargetPhrase;
     
     if(m_coding == PREnc) {
+        std::vector<std::string> s = Tokenize(sourcePhraseStr);
         encodeTargetPhrasePREnc(s, t, a, ownRank, encodedTargetPhrase);
     }
     else if(m_coding == REnc) {
+        std::vector<std::string> s = Tokenize(sourcePhraseStr);
         encodeTargetPhraseREnc(s, t, a, encodedTargetPhrase);        
     }
     else {
-        encodeTargetPhraseNone(s, t, a, encodedTargetPhrase);      
+        encodeTargetPhraseNone(t, a, encodedTargetPhrase);      
     }
     encodeScores(scores, encodedTargetPhrase);
     encodeAlignment(a, encodedTargetPhrase);
@@ -694,31 +678,25 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
     EncodeState state = ReadSymbol;
   
     unsigned phraseStopSymbolId;
-    
     if(m_coding == REnc)
         phraseStopSymbolId = encodeREncSymbol1(getTargetSymbolId(m_phraseStopSymbol));
     else if(m_coding == PREnc)
         phraseStopSymbolId = encodePREncSymbol1(getTargetSymbolId(m_phraseStopSymbol));
     else
         phraseStopSymbolId = getTargetSymbolId(m_phraseStopSymbol);
-        
     AlignPoint alignStopSymbol(-1, -1);
   
     std::stringstream encodedStream(encodedCollection);
     encodedStream.unsetf(std::ios::skipws);
-    std::string result;
-  
-    char byte = 0;
-    char mask = 1;
-    unsigned int pos = 0;
-  
+    
+    std::string output;
+    BitStream<> bitstream(output);
+    
     unsigned symbol;
-  
     float score;
     size_t currScore = 0;
-  
     AlignPoint alignPoint;
-  
+                                       
     while(encodedStream) {
         switch(state) {
             case ReadSymbol:
@@ -728,10 +706,10 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
             case ReadScore:
                 if(currScore == m_numScoreComponent) {
                     currScore = 0;
-                    //if(m_containsAlignmentInfo)
+                    if(m_containsAlignmentInfo)
                       state = ReadAlignment;
-                    //else
-                    //  state = ReadSymbol;
+                    else
+                      state = ReadSymbol;
                 }
                 else {
                     encodedStream.read((char*) &score, sizeof(float));
@@ -743,53 +721,27 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
                 encodedStream.read((char*) &alignPoint, sizeof(AlignPoint));
                 state = EncodeAlignment;
                 break;
+            
             case EncodeSymbol:
-            case EncodeScore:
-            case EncodeAlignment:
-                boost::dynamic_bitset<> code;
-                if(state == EncodeSymbol) {
-                    code = m_symbolTree->encode(symbol);
-                    if(symbol == phraseStopSymbolId)
-                        state = ReadScore;
-                    else
-                        state = ReadSymbol;
-                }
-                else if(state == EncodeScore) {
+                state = (symbol == phraseStopSymbolId) ? ReadScore : ReadSymbol;
+                bitstream.putCode(m_symbolTree->encode(symbol));
+                break;
+            case EncodeScore: {
                     //float closestScore = m_scoreCounts[idx].lowerBound(score);
                     //code = m_scoreTrees[idx]->encode(closestScore);
                     size_t idx = m_multipleScoreTrees ? currScore-1 : 0;
-                    code = m_scoreTrees[idx]->encode(score);
                     state = ReadScore;
+                    bitstream.putCode(m_scoreTrees[idx]->encode(score));
                 }
-                else if(state == EncodeAlignment) {
-                    code = m_alignTree->encode(alignPoint);
-                    if(alignPoint == alignStopSymbol)
-                        state = ReadSymbol;
-                    else
-                        state = ReadAlignment;
-                }
-                
-                for(int j = code.size()-1; j >= 0; j--) {
-                    if(code[j])
-                        byte |= mask;
-                    mask = mask << 1;
-                    pos++;
-                    
-                    if(pos % 8 == 0) {
-                        result.push_back(byte);
-                        mask = 1;
-                        byte = 0;
-                    }
-                }
+                break;
+            case EncodeAlignment:
+                state = (alignPoint == alignStopSymbol) ? ReadSymbol : ReadAlignment;
+                bitstream.putCode(m_alignTree->encode(alignPoint));
                 break;
         }
     }
-  
-    // Add last byte with remaining waste bits
-    if(pos % 8 != 0)
-        result.push_back(byte);
     
-    return result;
+    return output;
 }
 
 void PhrasetableCreator::addEncodedLine(PackedItem& pi) {
@@ -809,7 +761,8 @@ void PhrasetableCreator::flushEncodedQueue(bool force) {
                 for(std::vector<std::string>::iterator it =
                     m_lastCollection.begin(); it != m_lastCollection.end(); it++)
                     targetPhraseCollection << *it;
-                    
+                
+                m_lastSourceRange.push_back(m_lastFlushedSourcePhrase);    
                 m_encodedTargetPhrases.push_back(targetPhraseCollection.str());
                 
                 m_lastFlushedSourceNum++;
@@ -820,6 +773,13 @@ void PhrasetableCreator::flushEncodedQueue(bool force) {
                 
                 m_lastCollection.clear();
             }
+        }
+        
+        if(m_lastSourceRange.size() == (1ul << m_orderBits)) {
+            m_srcHash.AddRange(m_lastSourceRange);
+            m_srcHash.SaveLastRange();
+            m_srcHash.DropLastRange();
+            m_lastSourceRange.clear();
         }
         
         m_lastFlushedSourcePhrase = pi.getSrc();
@@ -839,6 +799,18 @@ void PhrasetableCreator::flushEncodedQueue(bool force) {
             
             m_lastCollection.clear();
         }
+        
+        m_srcHash.AddRange(m_lastSourceRange);
+        m_lastSourceRange.clear();
+        
+#ifdef WITH_THREADS
+        m_srcHash.WaitAll();
+#endif
+    
+        m_srcHash.SaveLastRange();
+        m_srcHash.DropLastRange();
+        m_srcHash.FinalizeSave();
+        
         m_lastFlushedLine = -1;
         m_lastFlushedSourceNum = -1;
     }
@@ -907,9 +879,6 @@ void EncodingTask::operator()() {
         boost::mutex::scoped_lock lock(m_mutex);
 #endif
         m_creator.addEncodedLine(packedItem);
-        
-        //if(maxPhrases && packedItem.getSrc() > maxPhrases)
-        //    return;
         
         if(std::getline(m_inFile, line))
             readline = true;
