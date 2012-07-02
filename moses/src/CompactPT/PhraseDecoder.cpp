@@ -64,6 +64,10 @@ inline unsigned PhraseDecoder::getTranslation(unsigned srcIdx, size_t rank) {
   return m_lexicalTable[srcTrgIdx + rank].second;
 }
 
+size_t PhraseDecoder::getMaxSourcePhraseLength() {
+  return m_maxPhraseLength;
+}
+
 inline unsigned PhraseDecoder::decodeREncSymbol1(unsigned encodedSymbol) {
   return encodedSymbol &= ~(3 << 30);
 }
@@ -102,6 +106,10 @@ size_t PhraseDecoder::load(std::FILE* in) {
   size_t start = std::ftell(in);
   
   std::fread(&m_coding, sizeof(m_coding), 1, in);
+  std::fread(&m_numScoreComponent, sizeof(m_numScoreComponent), 1, in);
+  std::fread(&m_containsAlignmentInfo, sizeof(m_containsAlignmentInfo), 1, in);
+  std::fread(&m_maxPhraseLength, sizeof(m_maxPhraseLength), 1, in);
+  
   if(m_coding == REnc) {
     m_sourceSymbols.load(in);
     
@@ -130,7 +138,8 @@ size_t PhraseDecoder::load(std::FILE* in) {
     m_scoreTrees[0] = new CanonicalHuffman<float>(in);
   }
   
-  m_alignTree = new CanonicalHuffman<AlignPoint>(in);
+  if(m_containsAlignmentInfo)
+    m_alignTree = new CanonicalHuffman<AlignPoint>(in);
   
   size_t end = std::ftell(in);
   return end - start;
@@ -185,8 +194,9 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
     if(state == Symbol) {
       unsigned symbol = m_symbolTree->nextSymbol(encodedBitStream);
       
-      if(symbol == phraseStopSymbol)
+      if(symbol == phraseStopSymbol) {
         state = Score;
+      }
       else {
         if(m_coding == REnc) {
           std::string wordString;
@@ -204,10 +214,10 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
               return TargetPhraseVectorPtr();  
             
             wordString = getTargetSymbol(getTranslation(sourceWords[srcPos], rank));
-            //if(StaticData::Instance().UseAlignmentInfo()) {
-            //    size_t trgPos = targetPhrase->GetSize();
-            //  alignment.insert(AlignPoint(srcPos, trgPos));
-            //  }
+            if(StaticData::Instance().UseAlignmentInfo()) {
+              size_t trgPos = targetPhrase->GetSize();
+              alignment.insert(AlignPoint(srcPos, trgPos));
+            }
           }
           else if(type == 3) {
             size_t rank = decodeREncSymbol3(symbol);
@@ -217,10 +227,10 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
               return TargetPhraseVectorPtr();  
                             
             wordString = getTargetSymbol(getTranslation(sourceWords[srcPos], rank));   
-            //if(StaticData::Instance().UseAlignmentInfo()) {
-            //                size_t trgPos = srcPos;
-            //  alignment.insert(AlignPoint(srcPos, trgPos));
-           // }
+            if(StaticData::Instance().UseAlignmentInfo()) {
+              size_t trgPos = srcPos;
+              alignment.insert(AlignPoint(srcPos, trgPos));
+            }
           }
           
           Word word;
@@ -258,9 +268,11 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             if(subTpv != NULL && rank < subTpv->size()) {
               TargetPhrase& subTp = subTpv->at(rank);
               targetPhrase->Append(subTp);
-              // TODO dodaj srcStart oraz targetPhrase->GetSize
-              //alignment.insert(subTp->GetAlignmentInfo().begin(),
-              //                subTp->GetAlignmentInfo().end());
+              if(StaticData::Instance().UseAlignmentInfo()) {
+                // @TODO: dodaj srcStart oraz targetPhrase->GetSize
+                //alignment.insert(subTp->GetAlignmentInfo().begin(),
+                //                subTp->GetAlignmentInfo().end());
+              }
             }
             else {
               return TargetPhraseVectorPtr();
@@ -295,13 +307,14 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
         state = Add;
       }
       else {
-        //alignment.insert(AlignPoint2(alignPoint));
+        if(StaticData::Instance().UseAlignmentInfo())  
+          alignment.insert(AlignPoint2(alignPoint));
       }
     }
     
     if(state == Add) {
-      //targetPhrase->SetAlignmentInfo(alignment);
-      //phraseColl->Add(targetPhrase);
+      if(StaticData::Instance().UseAlignmentInfo())
+        targetPhrase->SetAlignmentInfo(alignment);
       
       // skip over filling bits.
       if(encodedBitStream.remainingBits() <= 8)

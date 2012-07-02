@@ -92,7 +92,9 @@ bool PhraseDictionaryMemoryHashed::LoadBinary(std::string filePath) {
 TargetPhraseVectorPtr
 PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
                                                            &sourcePhrase) {
-    
+  if(sourcePhrase.GetSize() > m_phraseDecoder->getMaxSourcePhraseLength())
+    return TargetPhraseVectorPtr();
+  
   TargetPhraseVectorPtr tpv = m_decodingCache.retrieve(sourcePhrase);
   if(tpv != NULL)
     return tpv;
@@ -120,9 +122,6 @@ struct CompareTargetPhrase {
 
 const TargetPhraseCollection*
 PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhrase) const {
-  if(sourcePhrase.GetSize() > 7)
-    return NULL;
-    
   TargetPhraseVectorPtr decodedPhraseColl
     = const_cast<PhraseDictionaryMemoryHashed*>(this)->CreateTargetPhraseCollection(sourcePhrase);
   

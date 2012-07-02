@@ -40,6 +40,7 @@ class PhraseDecoder {
     
     size_t m_numScoreComponent;
     bool m_containsAlignmentInfo;
+    size_t m_maxPhraseLength;
     
     boost::unordered_map<std::string, unsigned> m_sourceSymbolsMap;
     StringVector<unsigned char, unsigned, std::allocator> m_sourceSymbols;
@@ -77,6 +78,8 @@ class PhraseDecoder {
     
     unsigned getTranslation(unsigned srcIdx, size_t rank);
     
+    size_t getMaxSourcePhraseLength();
+    
     unsigned decodeREncSymbol1(unsigned encodedSymbol);
     unsigned decodeREncSymbol2Rank(unsigned encodedSymbol);
     unsigned decodeREncSymbol2Position(unsigned encodedSymbol);
@@ -86,8 +89,6 @@ class PhraseDecoder {
     int decodePREncSymbol2Left(unsigned encodedSymbol);
     int decodePREncSymbol2Right(unsigned encodedSymbol);
     unsigned decodePREncSymbol2Rank(unsigned encodedSymbol);
-    
-  public:
     
     PhraseDecoder(
       PhraseDictionaryMemoryHashed &phraseDictionary,

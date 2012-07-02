@@ -5,25 +5,44 @@
 
 using namespace Moses;
 
-void printHelp()
-{
-  std::cerr << "Usage:\n"
+void printHelp(char **argv) {
+  std::cerr << "Usage " << argv[0] << ":\n"
             "options: \n"
-            "\t-in  string -- input table file name\n"
-            "\t-out string -- prefix of binary table file\n"
-            "\t-enc string -- Encoding type (None REnc PREnc)\n"
+            "\t-in  string       -- input table file name\n"
+            "\t-out string       -- prefix of binary table file\n"
+            "\t-encoding string  -- Encoding type (None REnc PREnc)\n"
+            "\t-nscores int      -- number of score components in phrase table\n"
+            "\t-alignment-info   -- include alignment info in the binary phrase table\n"
+            "\nadvanced:\n"
+            "\t-landmark int     -- use landmark phrase every 2^n source phrases\n"
+            "\t-fingerprint int  -- number of bits used for source phrase fingerprints\n"
+            "\t-join-scores      -- single set of Huffman codes for score components\n"
+            "\t-quantize int     -- maximum number of scores per score component\n"
+
+#ifdef WITH_THREADS
+            "\t-threads int      -- number of threads used for conversion\n"
+#endif 
             "\n";
 }
 
-int main(int argc,char **argv) {
+
+int main(int argc, char **argv) {
   std::cerr << "processPhraseTableHashed by Marcin Junczys-Dowmunt\n";
     
   std::string inFilePath;
   std::string outFilePath("out");
   PhrasetableCreator::Coding coding = PhrasetableCreator::PREnc;
   
+  size_t numScoreComponent = 5;  
+  size_t orderBits = 10;
+  size_t fingerprintBits = 16;
+  bool useAlignmentInfo = false;
+  bool multipleScoreTrees = true;
+  size_t quantize = 0;
+  size_t threads = 1;
+  
   if(1 >= argc) {
-    printHelp();
+    printHelp(argv);
     return 1;
   }
   for(int i = 1; i < argc; ++i) {
@@ -31,42 +50,68 @@ int main(int argc,char **argv) {
     if("-in" == arg && i+1 < argc) {
       ++i;
       inFilePath = argv[i];
-    } else if("-out" == arg && i+1 < argc) {
+    }
+    else if("-out" == arg && i+1 < argc) {
       ++i;
       outFilePath = argv[i];
-    } else if("-enc" == arg && i+1 < argc) {
+    }
+    else if("-encoding" == arg && i+1 < argc) {
       ++i;
       std::string val(argv[i]);
-      if(val == "None") {
+      if(val == "None" || val == "none") {
         coding = PhrasetableCreator::None;
       }
-      else if(val == "REnc") {
+      else if(val == "REnc" || val == "renc") {
         coding = PhrasetableCreator::REnc;
       }
-      else if(val == "PREnc") {
+      else if(val == "PREnc" || val == "prenc") {
         coding = PhrasetableCreator::PREnc;
       }
-    } else {
+    }
+    else if("-nscores" == arg && i+1 < argc) {
+      ++i;
+      numScoreComponent = atoi(argv[i]);
+    }
+    else if("-alignment-info" == arg) {
+      useAlignmentInfo = true;
+    }
+    else if("-landmark" == arg && i+1 < argc) {
+      ++i;
+      orderBits = atoi(argv[i]);
+    }
+    else if("-fingerprint" == arg && i+1 < argc) {
+      ++i;
+      fingerprintBits = atoi(argv[i]);
+    }
+    else if("-join-scores" == arg) {
+      multipleScoreTrees = false;
+    }
+    else if("-quantize" == arg && i+1 < argc) {
+      ++i;
+      quantize = atoi(argv[i]);
+    }
+    else if("-threads" == arg && i+1 < argc) {
+#ifdef WITH_THREADS
+      ++i;
+      threads = atoi(argv[i]);
+#else
+      std::cerr << "Thread support not compiled in" << std::endl;
+      exit(1);
+#endif
+    }
+    else {
       //somethings wrong... print help
-      printHelp();
+      printHelp(argv);
       return 1;
     }
   }
   
-  size_t numScoreComponent = 5;  
-  size_t orderBits = 10;
-  size_t fingerprintBits = 16;
-  bool containsAlignmentInfo = true;
-  bool multipleScoreTrees = true;
-  size_t quantize = 0;
-  size_t threads = 6;
-  
   PhrasetableCreator(inFilePath, outFilePath, numScoreComponent,
                      coding, orderBits, fingerprintBits,
-                     containsAlignmentInfo, multipleScoreTrees,
-                     quantize,
+                     useAlignmentInfo, multipleScoreTrees,
+                     quantize
 #ifdef WITH_THREADS
-                     threads
+                     , threads
 #endif                     
                      );
 }

@@ -14,23 +14,23 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath,
                                        Coding coding,
                                        size_t orderBits,
                                        size_t fingerPrintBits,
-                                       bool containsAlignmentInfo,
+                                       bool useAlignmentInfo,
                                        bool multipleScoreTrees,
-                                       size_t quantize,
+                                       size_t quantize
 #ifdef WITH_THREADS
-                                       size_t threads
+                                       , size_t threads
 #endif
                                        )
   : m_inPath(inPath), m_outPath(outPath),
     m_outFile(std::fopen(m_outPath.c_str(), "w")), m_numScoreComponent(numScoreComponent),
     m_coding(coding), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits),
-    m_containsAlignmentInfo(containsAlignmentInfo),
+    m_useAlignmentInfo(useAlignmentInfo),
     m_multipleScoreTrees(multipleScoreTrees),
     m_quantize(quantize),
 #ifdef WITH_THREADS
     m_threads(threads),
-    m_srcHash(m_orderBits, m_fingerPrintBits, m_threads/2),
-    m_rnkHash(m_orderBits, m_fingerPrintBits, m_threads/2),
+    m_srcHash(m_orderBits, m_fingerPrintBits, 1),
+    m_rnkHash(10, 24, m_threads),
 #else
     m_srcHash(m_orderBits, m_fingerPrintBits),
     m_rnkHash(m_orderBits, m_fingerPrintBits),
@@ -77,56 +77,68 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath,
     
     std::cerr << "CompressedPhrases: " << m_compressedTargetPhrases.size() << std::endl;
 
-    // Save, put that somewhere else
+    save();
+    std::fclose(m_outFile);
+}
+    
+void PhrasetableCreator::save() {
+    // Save type of encoding
     std::fwrite(&m_coding, sizeof(m_coding), 1, m_outFile);
+    std::fwrite(&m_numScoreComponent, sizeof(m_numScoreComponent), 1, m_outFile);
+    std::fwrite(&m_useAlignmentInfo, sizeof(m_useAlignmentInfo), 1, m_outFile);
+    std::fwrite(&m_maxPhraseLength, sizeof(m_maxPhraseLength), 1, m_outFile);
+    
     if(m_coding == REnc) {
+        // Save source language symbols for REnc
         std::vector<std::string> temp1;
         temp1.resize(m_sourceSymbolsMap.size());
         for(boost::unordered_map<std::string, unsigned>::iterator it
             = m_sourceSymbolsMap.begin(); it != m_sourceSymbolsMap.end(); it++)
             temp1[it->second] = it->first;
-            
         std::sort(temp1.begin(), temp1.end());
-            
         StringVector<unsigned char, unsigned, std::allocator> sourceSymbols;
         for(std::vector<std::string>::iterator it = temp1.begin();
             it != temp1.end(); it++)
             sourceSymbols.push_back(*it);
-        
         sourceSymbols.save(m_outFile);
         
+        // Save lexical translation table for REnc
         size_t size = m_lexicalTableIndex.size();
         std::fwrite(&size, sizeof(size_t), 1, m_outFile);
         std::fwrite(&m_lexicalTableIndex[0], sizeof(size_t), size, m_outFile);
-        
         size = m_lexicalTable.size();
         std::fwrite(&size, sizeof(size_t), 1, m_outFile);
         std::fwrite(&m_lexicalTable[0], sizeof(SrcTrg), size, m_outFile);
     }
     
+    // Save target language symbols
     std::vector<std::string> temp2;
     temp2.resize(m_targetSymbolsMap.size());
     for(boost::unordered_map<std::string, unsigned>::iterator it
         = m_targetSymbolsMap.begin(); it != m_targetSymbolsMap.end(); it++)
         temp2[it->second] = it->first;
-        
     StringVector<unsigned char, unsigned, std::allocator> targetSymbols;
     for(std::vector<std::string>::iterator it = temp2.begin();
         it != temp2.end(); it++)
         targetSymbols.push_back(*it);
-    
     targetSymbols.save(m_outFile);
     
+    // Save Huffman codes for target language symbols
     m_symbolTree->save(m_outFile);
     
+    // Save number of Huffman code sets for scores and
+    // save Huffman code sets
     std::fwrite(&m_multipleScoreTrees, sizeof(m_multipleScoreTrees), 1, m_outFile);
     size_t numScoreTrees = m_scoreTrees.size();
     for(size_t i = 0; i < numScoreTrees; i++)
         m_scoreTrees[i]->save(m_outFile);
     
-    m_alignTree->save(m_outFile);
+    // Save Huffman codes for alignments
+    if(m_useAlignmentInfo)
+        m_alignTree->save(m_outFile);
+    
+    // Save compressed target phrase collections 
     size_t phraseSize = m_compressedTargetPhrases.save(m_outFile);
-    std::fclose(m_outFile);
 }
     
 void PhrasetableCreator::loadLexicalTable(std::string filePath) {
@@ -332,9 +344,13 @@ void PhrasetableCreator::calcHuffmanCodes() {
         
     }
     
+    
     std::vector<ScoreTree*>::iterator treeIt = m_scoreTrees.begin();
     for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
         it != m_scoreCounters.end(); it++) {
+        
+        if(m_quantize)
+            (*it)->quantize(m_quantize);
         
         std::cerr << "Creating Huffman codes for " << (*it)->size()
             << " scores" << std::endl;
@@ -342,27 +358,30 @@ void PhrasetableCreator::calcHuffmanCodes() {
         *treeIt = new ScoreTree((*it)->begin(), (*it)->end());
         treeIt++;
     }
-    std::cerr << "Creating Huffman codes for " << m_alignCounter.size()
-        << " alignment points" << std::endl;
-    m_alignTree = new AlignTree(m_alignCounter.begin(), m_alignCounter.end());
-    {  
-        size_t sum = 0, sumall = 0;
-        for(AlignCounter::iterator it = m_alignCounter.begin();
-            it != m_alignCounter.end(); it++) {
-            sumall += it->second * m_alignTree->encode(it->first).size();
-            sum    += it->second;
+    
+    if(m_useAlignmentInfo) {
+        std::cerr << "Creating Huffman codes for " << m_alignCounter.size()
+            << " alignment points" << std::endl;
+        m_alignTree = new AlignTree(m_alignCounter.begin(), m_alignCounter.end());
+        {  
+            size_t sum = 0, sumall = 0;
+            for(AlignCounter::iterator it = m_alignCounter.begin();
+                it != m_alignCounter.end(); it++) {
+                sumall += it->second * m_alignTree->encode(it->first).size();
+                sum    += it->second;
+            }
+            
+            float bits = float(sumall)/sum;
+            std::cerr << bits << " bits per encoded alignment point" << std::endl;
+            
+            float entropy = 0;
+            for(AlignCounter::iterator it = m_alignCounter.begin();
+                it != m_alignCounter.end(); it++) {
+                entropy += -float(it->second)/float(sum)
+                           * log(float(it->second)/float(sum))/log(2);
+            }
+            std::cerr << "Entropy for encoded alignment point: " << entropy << std::endl;
         }
-        
-        float bits = float(sumall)/sum;
-        std::cerr << bits << " bits per encoded alignment point" << std::endl;
-        
-        float entropy = 0;
-        for(AlignCounter::iterator it = m_alignCounter.begin();
-            it != m_alignCounter.end(); it++) {
-            entropy += -float(it->second)/float(sum)
-                       * log(float(it->second)/float(sum))/log(2);
-        }
-        std::cerr << "Entropy for encoded alignment point: " << entropy << std::endl;
     }
 }
 
@@ -402,9 +421,10 @@ unsigned PhrasetableCreator::getTargetSymbolId(std::string& symbol) {
 }
 
 unsigned PhrasetableCreator::getOrAddTargetSymbolId(std::string& symbol) {
-    #ifdef WITH_THREADS
+    // @TODO: check speed
+#ifdef WITH_THREADS
     boost::mutex::scoped_lock lock(m_mutex);
-    #endif
+#endif
     boost::unordered_map<std::string, unsigned>::iterator it
         = m_targetSymbolsMap.find(symbol);
         
@@ -473,7 +493,6 @@ unsigned PhrasetableCreator::encodePREncSymbol2(int left, int right, unsigned ra
 }
 
 void PhrasetableCreator::encodeTargetPhraseNone(std::vector<std::string>& t,
-                                                std::set<AlignPoint>& a,
                                                 std::ostream& os)
 {
     std::stringstream encodedTargetPhrase;
@@ -673,9 +692,11 @@ std::string PhrasetableCreator::encodeLine(std::vector<std::string>& tokens) {
     std::vector<float> scores = Tokenize<float>(scoresStr);
     
     std::set<AlignPoint> a;
-    std::vector<size_t> positions = Tokenize<size_t>(alignmentStr, " \t-");
-    for(size_t i = 0; i < positions.size(); i += 2) {
-      a.insert(AlignPoint(positions[i], positions[i+1]));
+    if(m_coding != None || m_useAlignmentInfo) {
+        std::vector<size_t> positions = Tokenize<size_t>(alignmentStr, " \t-");
+        for(size_t i = 0; i < positions.size(); i += 2) {
+          a.insert(AlignPoint(positions[i], positions[i+1]));
+        }
     }
     
     std::stringstream encodedTargetPhrase;
@@ -687,10 +708,13 @@ std::string PhrasetableCreator::encodeLine(std::vector<std::string>& tokens) {
         encodeTargetPhraseREnc(s, t, a, encodedTargetPhrase);        
     }
     else {
-        encodeTargetPhraseNone(t, a, encodedTargetPhrase);      
+        encodeTargetPhraseNone(t, encodedTargetPhrase);      
     }
+    
     encodeScores(scores, encodedTargetPhrase);
-    encodeAlignment(a, encodedTargetPhrase);
+    
+    if(m_useAlignmentInfo)
+        encodeAlignment(a, encodedTargetPhrase);
     
     return encodedTargetPhrase.str();
 }
@@ -731,7 +755,7 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
             case ReadScore:
                 if(currScore == m_numScoreComponent) {
                     currScore = 0;
-                    if(m_containsAlignmentInfo)
+                    if(m_useAlignmentInfo)
                       state = ReadAlignment;
                     else
                       state = ReadSymbol;
@@ -752,10 +776,10 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
                 bitstream.putCode(m_symbolTree->encode(symbol));
                 break;
             case EncodeScore: {
-                    //float closestScore = m_scoreCounts[idx].lowerBound(score);
-                    //code = m_scoreTrees[idx]->encode(closestScore);
-                    size_t idx = m_multipleScoreTrees ? currScore-1 : 0;
                     state = ReadScore;
+                    size_t idx = m_multipleScoreTrees ? currScore-1 : 0;
+                    if(m_quantize)
+                        score = m_scoreCounters[idx]->lowerBound(score);
                     bitstream.putCode(m_scoreTrees[idx]->encode(score));
                 }
                 break;
@@ -771,7 +795,6 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
 
 void PhrasetableCreator::addEncodedLine(PackedItem& pi) {
     m_queue.push(pi);
-    flushEncodedQueue();  
 }
 
 void PhrasetableCreator::flushEncodedQueue(bool force) {
@@ -842,8 +865,7 @@ void PhrasetableCreator::flushEncodedQueue(bool force) {
 }
 
 void PhrasetableCreator::addCompressedCollection(PackedItem& pi) {
-    m_queue.push(pi);
-    flushCompressedQueue();  
+    m_queue.push(pi); 
 }
 
 void PhrasetableCreator::flushCompressedQueue(bool force) {
@@ -872,44 +894,66 @@ void PhrasetableCreator::flushCompressedQueue(bool force) {
 size_t EncodingTask::m_lineNum = 0;
 #ifdef WITH_THREADS
 boost::mutex EncodingTask::m_mutex;
+boost::mutex EncodingTask::m_fileMutex;
 #endif
 
 EncodingTask::EncodingTask(InputFileStream& inFile, PhrasetableCreator& creator)
   : m_inFile(inFile), m_creator(creator) {}
   
 void EncodingTask::operator()() {
-    std::string line;
     size_t lineNum = 0;
     bool readline = false;
     
+    std::vector<std::string> lines;
+    size_t max_lines = 1000;
+    lines.reserve(max_lines);
+    
     {
 #ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
+        boost::mutex::scoped_lock lock(m_fileMutex);
 #endif
-        if(std::getline(m_inFile, line))
-            readline = true;
+        std::string line;
+        while(std::getline(m_inFile, line) && lines.size() < max_lines)
+            lines.push_back(line);
         lineNum = m_lineNum;
-        m_lineNum++;
+        m_lineNum += lines.size();
     }
     
-    while(readline) {
-        std::vector<std::string> tokens = Moses::Tokenize(line , "\t");
-        std::string encodedLine = m_creator.encodeLine(tokens);
+    std::vector<PackedItem> result;
+    result.reserve(max_lines);
     
-        size_t ownRank = Scan<size_t>(tokens[5]);
-        PackedItem packedItem(lineNum, tokens[0], encodedLine, ownRank);
+    while(lines.size()) {
+        for(size_t i = 0; i < lines.size(); i++) {
+            std::vector<std::string> tokens = Moses::Tokenize(lines[i] , "\t");
+            std::string encodedLine = m_creator.encodeLine(tokens);
+    
+            size_t ownRank = Scan<size_t>(tokens[5]);
+            PackedItem packedItem(lineNum+i, tokens[0], encodedLine, ownRank);
+            result.push_back(packedItem);
+        }
+        lines.clear();
         
-        readline = false;
+        {
 #ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
+            boost::mutex::scoped_lock lock(m_mutex);
 #endif
-        m_creator.addEncodedLine(packedItem);
+            for(int i = 0; i < result.size(); i++) 
+                m_creator.addEncodedLine(result[i]);
+            m_creator.flushEncodedQueue();  
+        }
         
-        if(std::getline(m_inFile, line))
-            readline = true;
+        result.clear();
+        lines.reserve(max_lines);
+        result.reserve(max_lines);
         
-        lineNum = m_lineNum;  
-        m_lineNum++;
+#ifdef WITH_THREADS
+        boost::mutex::scoped_lock lock(m_fileMutex);
+#endif
+        std::string line;
+        while(std::getline(m_inFile, line) && lines.size() < max_lines)
+            lines.push_back(line);
+        lineNum = m_lineNum;
+        m_lineNum += lines.size();
     }
 }
 
@@ -947,9 +991,7 @@ void CompressionTask::operator()() {
         boost::mutex::scoped_lock lock(m_mutex);
 #endif
         m_creator.addCompressedCollection(packedItem);
-        
-        //if(maxPhrases && packedItem.getSrc() > maxPhrases)
-        //    return;
+        m_creator.flushCompressedQueue();
         
         collectionNum = m_collectionNum;  
         m_collectionNum++;    

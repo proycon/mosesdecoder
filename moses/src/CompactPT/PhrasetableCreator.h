@@ -18,10 +18,7 @@
 #include "CompactPT/CanonicalHuffman.h"
 
 // @TODO: Check speed for multithread, locking etc.
-// Save maxPhraseLength
-// Move code for saving to other function
 // Add quantization
-// Finish how containsAlignmentInfo works
 
 namespace Moses {
     
@@ -58,16 +55,10 @@ class Counter {
     Counter() : m_maxSize(0) {}
     
     iterator begin() {
-#ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
-#endif
         return m_freqMap.begin();
     }
     
     iterator end() {
-#ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
-#endif
         return m_freqMap.end();
     }
     
@@ -85,10 +76,7 @@ class Counter {
         m_freqMap[data] += num;
     }
     
-    mapped_type& operator[](DataType data) {
-#ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
-#endif
+    mapped_type operator[](DataType data) {
         return m_freqMap[data];
     }
     
@@ -131,9 +119,6 @@ class Counter {
     }
     
     DataType lowerBound(DataType data) {
-#ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
-#endif
         if(m_maxSize == 0 || m_bestVec.size() == 0)
             return data;
         else {
@@ -180,11 +165,9 @@ class PhrasetableCreator {
     Coding m_coding;
     size_t m_orderBits;
     size_t m_fingerPrintBits;
-    bool m_containsAlignmentInfo;
+    bool m_useAlignmentInfo;
     bool m_multipleScoreTrees;
     size_t m_quantize;
-    
-    // @TODO:
     size_t m_maxPhraseLength;
     
     static std::string m_phraseStopSymbol;
@@ -260,6 +243,8 @@ class PhrasetableCreator {
     std::vector<std::string> m_lastSourceRange;
     std::vector<std::string> m_lastCollection;
     
+    void save();
+    
     void addSourceSymbolId(std::string& symbol);
     unsigned getSourceSymbolId(std::string& symbol);
     
@@ -277,7 +262,6 @@ class PhrasetableCreator {
     unsigned encodePREncSymbol2(int lOff, int rOff, unsigned rank);
     
     void encodeTargetPhraseNone(std::vector<std::string>& t,
-                                std::set<AlignPoint>& a,
                                 std::ostream& os);
     
     void encodeTargetPhraseREnc(std::vector<std::string>& s,
@@ -315,11 +299,11 @@ class PhrasetableCreator {
                        Coding coding = PREnc,
                        size_t orderBits = 10,
                        size_t fingerPrintBits = 16,
-                       bool containsAlignmentInfo = true,
+                       bool useAlignmentInfo = false,
                        bool multipleScoreTrees = true,
-                       size_t quantize = 0,
+                       size_t quantize = 0
 #ifdef WITH_THREADS
-                       size_t threads = 2
+                       , size_t threads = 2
 #endif
                       );
     
@@ -331,6 +315,7 @@ class EncodingTask {
   private:
 #ifdef WITH_THREADS
     static boost::mutex m_mutex;
+    static boost::mutex m_fileMutex;
 #endif
     static size_t m_lineNum;
     static size_t m_sourcePhraseNum;
