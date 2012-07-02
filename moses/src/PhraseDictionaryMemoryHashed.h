@@ -58,6 +58,7 @@ protected:
 
   size_t m_orderBits; 
   size_t m_fingerPrintBits;
+  
   BlockHashIndex m_hash;
   
   PhraseDecoder* m_phraseDecoder;
@@ -73,6 +74,7 @@ protected:
   const LMList* m_languageModels;
   float m_weightWP;
      
+  std::string makeSourceKey(std::string &);
   TargetPhraseVectorPtr CreateTargetPhraseCollection(const Phrase &source);
 
 public:

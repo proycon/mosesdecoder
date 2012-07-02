@@ -89,6 +89,10 @@ bool PhraseDictionaryMemoryHashed::LoadBinary(std::string filePath) {
     //return hashSize && coderSize && phraseSize;
 }
 
+std::string PhraseDictionaryMemoryHashed::makeSourceKey(std::string &source) {
+    return source + m_phraseDecoder->getSeparator();
+}
+
 TargetPhraseVectorPtr
 PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
                                                            &sourcePhrase) {
@@ -100,7 +104,7 @@ PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
     return tpv;
   
   std::string sourcePhraseString = sourcePhrase.GetStringRep(*m_input);
-  size_t index = m_hash[sourcePhraseString];
+  size_t index = m_hash[makeSourceKey(sourcePhraseString)];
   
   if(index != m_hash.GetSize()) {    
 

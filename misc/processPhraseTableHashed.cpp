@@ -10,7 +10,7 @@ void printHelp(char **argv) {
             "options: \n"
             "\t-in  string       -- input table file name\n"
             "\t-out string       -- prefix of binary table file\n"
-            "\t-encoding string  -- Encoding type (None REnc PREnc)\n"
+            "\t-encoding string  -- Encoding type (PREnc REnc None)\n"
             "\t-nscores int      -- number of score components in phrase table\n"
             "\t-alignment-info   -- include alignment info in the binary phrase table\n"
             "\nadvanced:\n"

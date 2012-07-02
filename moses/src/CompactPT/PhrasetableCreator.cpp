@@ -4,9 +4,8 @@
 
 namespace Moses {
     
-size_t maxPhrases = 0;
-    
 std::string PhrasetableCreator::m_phraseStopSymbol = "__SPECIAL_STOP_SYMBOL__";
+std::string PhrasetableCreator::m_separator = " ||| ";
     
 PhrasetableCreator::PhrasetableCreator(std::string inPath,
                                        std::string outPath,
@@ -212,6 +211,8 @@ void PhrasetableCreator::loadLexicalTable(std::string filePath) {
 
 void PhrasetableCreator::createRankHash() {
     
+    // @TODO: compute rank in memory per source phrase 
+    
     InputFileStream inFile(m_inPath);
      
     std::string line, prevSourcePhrase = "";
@@ -221,19 +222,22 @@ void PhrasetableCreator::createRankHash() {
     
     size_t step = 1ul << m_orderBits;
     
+    std::priority_queue<std::pair<float, size_t> > rankQueue;
     std::vector<std::string> sourceTargetPhrases;
-
+    
     while(std::getline(inFile, line)) {
         if(sourceTargetPhrases.size() == step) {
             m_rnkHash.AddRange(sourceTargetPhrases);
             sourceTargetPhrases.clear();
         }
    
-        std::vector<std::string> tokens = Tokenize( line , "\t" );
+        std::vector<std::string> tokens;
+        TokenizeMultiCharSeparator(tokens, line, m_separator);
         
         if (numElement == NOT_FOUND) {
             // init numElement
             numElement = tokens.size();
+            std::cerr << numElement << std::endl;
             assert(numElement >= 3);
             // extended style: source ||| target ||| scores ||| [alignment] ||| [counts]
         }
@@ -255,22 +259,29 @@ void PhrasetableCreator::createRankHash() {
             continue;
         }
        
-        if(sourcePhraseString != prevSourcePhrase && prevSourcePhrase != "") {
-            if(maxPhrases && phr_num > maxPhrases)
-                break;
-            
+        if(sourcePhraseString != prevSourcePhrase && prevSourcePhrase != "") {            
             ++phr_num;
             if(phr_num % 100000 == 0)
               std::cerr << ".";
             if(phr_num % 5000000 == 0)
               std::cerr << "[" << phr_num << "]" << std::endl;
+        
+            m_ranks.resize(line_num + 1);
+            int r = 0;
+            while(!rankQueue.empty()) {
+                m_ranks[rankQueue.top().second] = r++;
+                rankQueue.pop();
+            }
         }
         
         prevSourcePhrase = sourcePhraseString;
         
-        std::string sourceTargetPhrase = Trim(tokens[0]) + "\t" + Trim(tokens[1]);
+        std::string sourceTargetPhrase = makeSourceTargetKey(tokens[0], tokens[1]);
         sourceTargetPhrases.push_back(sourceTargetPhrase);
-        m_ranks.push_back(Scan<unsigned>(tokens[5]));
+        
+        std::vector<float> scores = Tokenize<float>(tokens[2]);
+        rankQueue.push(std::make_pair(scores[2], line_num));
+        line_num++;
     }
     
     m_rnkHash.AddRange(sourceTargetPhrases);
@@ -279,7 +290,22 @@ void PhrasetableCreator::createRankHash() {
     m_rnkHash.WaitAll();
 #endif
 
+    m_ranks.resize(line_num + 1);
+    int r = 0;
+    while(!rankQueue.empty()) {
+        m_ranks[rankQueue.top().second] = r++;
+        rankQueue.pop();
+    }
+
     std::cerr << std::endl;
+}
+
+inline std::string PhrasetableCreator::makeSourceKey(std::string &source) {
+    return source + m_separator;
+}
+
+inline std::string PhrasetableCreator::makeSourceTargetKey(std::string &source, std::string &target) {
+    return source + m_separator + target + m_separator;
 }
 
 void PhrasetableCreator::encodeTargetPhrases() {
@@ -583,20 +609,19 @@ void PhrasetableCreator::encodeTargetPhrasePREnc(std::vector<std::string>& s,
         ConsistantPhrases::Phrase p = cp.pop();
         //std::cout << "\t(" << p.i << "," << p.m << "," << p.j << "," << p.n << ")" << std::endl;
         
-        std::stringstream key;
-        
-        key << s[p.i];
+        std::stringstream key1;
+        key1 << s[p.i];
         for(int i = p.i+1; i < p.i+p.m; i++)
-            key << " " << s[i];
+            key1 << " " << s[i];
             
-        key << "\t";
-        
-        key << t[p.j];
+        std::stringstream key2;
+        key2 << t[p.j];
         for(int i = p.j+1; i < p.j+p.n; i++)
-            key << " " << t[i];
+            key2 << " " << t[i];
         
         int rank = -1;
-        size_t idx = m_rnkHash[key.str()];
+        std::string key1Str = key1.str(), key2Str = key2.str();
+        size_t idx = m_rnkHash[makeSourceTargetKey(key1Str, key2Str)];
         if(idx != m_rnkHash.GetSize())
             rank = m_ranks[idx];
         
@@ -673,13 +698,11 @@ void PhrasetableCreator::encodeAlignment(std::set<AlignPoint>& alignment,
     m_alignCounter.increase(stop);
 }
 
-std::string PhrasetableCreator::encodeLine(std::vector<std::string>& tokens) {        
+std::string PhrasetableCreator::encodeLine(std::vector<std::string>& tokens, size_t ownRank) {        
     std::string sourcePhraseStr = tokens[0];
     std::string targetPhraseStr = tokens[1];
     std::string scoresStr = tokens[2];
     std::string alignmentStr = tokens[3];
-    
-    size_t ownRank = Scan<size_t>(tokens[5]); 
     
     std::vector<std::string> s = Tokenize(sourcePhraseStr);
     
@@ -810,7 +833,7 @@ void PhrasetableCreator::flushEncodedQueue(bool force) {
                     m_lastCollection.begin(); it != m_lastCollection.end(); it++)
                     targetPhraseCollection << *it;
                 
-                m_lastSourceRange.push_back(m_lastFlushedSourcePhrase);    
+                m_lastSourceRange.push_back(makeSourceKey(m_lastFlushedSourcePhrase));    
                 m_encodedTargetPhrases.push_back(targetPhraseCollection.str());
                 
                 m_lastFlushedSourceNum++;
@@ -831,9 +854,14 @@ void PhrasetableCreator::flushEncodedQueue(bool force) {
         }
         
         m_lastFlushedSourcePhrase = pi.getSrc();
-        if(m_lastCollection.size() <= pi.getRank())
-            m_lastCollection.resize(pi.getRank() + 1);
-        m_lastCollection[pi.getRank()] = pi.getTrg();
+        if(m_coding == PREnc) {
+            if(m_lastCollection.size() <= pi.getRank())
+                m_lastCollection.resize(pi.getRank() + 1);
+            m_lastCollection[pi.getRank()] = pi.getTrg();
+        }
+        else {
+            m_lastCollection.push_back(pi.getTrg());
+        }
     }
     
     if(force) {
@@ -924,11 +952,16 @@ void EncodingTask::operator()() {
     
     while(lines.size()) {
         for(size_t i = 0; i < lines.size(); i++) {
-            std::vector<std::string> tokens = Moses::Tokenize(lines[i] , "\t");
-            std::string encodedLine = m_creator.encodeLine(tokens);
-    
-            size_t ownRank = Scan<size_t>(tokens[5]);
-            PackedItem packedItem(lineNum+i, tokens[0], encodedLine, ownRank);
+            std::vector<std::string> tokens;
+            Moses::TokenizeMultiCharSeparator(tokens, lines[i], m_creator.m_separator);
+            
+            size_t ownRank = 0;
+            if(m_creator.m_coding == PhrasetableCreator::PREnc)
+                ownRank = m_creator.m_ranks[lineNum + i];
+            
+            std::string encodedLine = m_creator.encodeLine(tokens, ownRank);
+            
+            PackedItem packedItem(lineNum + i, tokens[0], encodedLine, ownRank);
             result.push_back(packedItem);
         }
         lines.clear();

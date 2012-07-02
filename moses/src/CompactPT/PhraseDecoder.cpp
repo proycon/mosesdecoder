@@ -19,7 +19,8 @@ PhraseDecoder::PhraseDecoder(
   m_scoreTrees(1), m_alignTree(0),
   m_phraseDictionary(phraseDictionary), m_input(input), m_output(output),
   m_feature(feature), m_weight(weight),
-  m_weightWP(weightWP), m_languageModels(languageModels)
+  m_weightWP(weightWP), m_languageModels(languageModels),
+  m_separator(" ||| ")
 { }
 
 PhraseDecoder::~PhraseDecoder() {
@@ -32,6 +33,10 @@ PhraseDecoder::~PhraseDecoder() {
   
   if(m_alignTree)
     delete m_alignTree;
+}
+
+std::string& PhraseDecoder::getSeparator() {
+  return m_separator;
 }
 
 inline unsigned PhraseDecoder::getSourceSymbolId(std::string& symbol) {

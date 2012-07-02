@@ -171,6 +171,7 @@ class PhrasetableCreator {
     size_t m_maxPhraseLength;
     
     static std::string m_phraseStopSymbol;
+    static std::string m_separator;
     
 #ifdef WITH_THREADS
     size_t m_threads;
@@ -276,6 +277,9 @@ class PhrasetableCreator {
     void encodeScores(std::vector<float>& scores, std::ostream& os);
     void encodeAlignment(std::set<AlignPoint>& alignment, std::ostream& os);
     
+    std::string makeSourceKey(std::string&);
+    std::string makeSourceTargetKey(std::string&, std::string&);
+    
     void loadLexicalTable(std::string filePath);
     
     void createRankHash();
@@ -283,7 +287,7 @@ class PhrasetableCreator {
     void calcHuffmanCodes();
     void compressTargetPhrases();
     
-    std::string encodeLine(std::vector<std::string>& tokens);
+    std::string encodeLine(std::vector<std::string>& tokens, size_t ownRank);
     void addEncodedLine(PackedItem& pi);
     void flushEncodedQueue(bool force = false);
     

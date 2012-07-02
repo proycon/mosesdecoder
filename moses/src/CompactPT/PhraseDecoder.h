@@ -65,10 +65,14 @@ class PhraseDecoder {
     const std::vector<float>* m_weight;
     float m_weightWP;
     const LMList* m_languageModels;
+    
+    std::string m_separator;
   
     // ***********************************************
   
   public:
+    
+    std::string& getSeparator();
     
     unsigned getSourceSymbolId(std::string& s);
     std::string getTargetSymbol(unsigned id) const;
