@@ -237,7 +237,6 @@ void PhrasetableCreator::createRankHash() {
         if (numElement == NOT_FOUND) {
             // init numElement
             numElement = tokens.size();
-            std::cerr << numElement << std::endl;
             assert(numElement >= 3);
             // extended style: source ||| target ||| scores ||| [alignment] ||| [counts]
         }
@@ -941,7 +940,7 @@ void EncodingTask::operator()() {
         boost::mutex::scoped_lock lock(m_fileMutex);
 #endif
         std::string line;
-        while(std::getline(m_inFile, line) && lines.size() < max_lines)
+        while(lines.size() < max_lines && std::getline(m_inFile, line))
             lines.push_back(line);
         lineNum = m_lineNum;
         m_lineNum += lines.size();
@@ -983,7 +982,7 @@ void EncodingTask::operator()() {
         boost::mutex::scoped_lock lock(m_fileMutex);
 #endif
         std::string line;
-        while(std::getline(m_inFile, line) && lines.size() < max_lines)
+        while(lines.size() < max_lines && std::getline(m_inFile, line))
             lines.push_back(line);
         lineNum = m_lineNum;
         m_lineNum += lines.size();
