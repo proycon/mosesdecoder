@@ -225,91 +225,6 @@ void PhrasetableCreator::createRankHash() {
     delete rt;
 #endif
     flushRankedQueue(true);
-    
-//    InputFileStream inFile(m_inPath);
-//     
-//    std::string line, prevSourcePhrase = "";
-//    size_t phr_num = 0;
-//    size_t line_num = 0;
-//    size_t numElement = NOT_FOUND;
-//    
-//    size_t step = 1ul << m_orderBits;
-//    
-//    std::priority_queue<std::pair<float, size_t> > rankQueue;
-//    std::vector<std::string> sourceTargetPhrases;
-//    
-//    while(std::getline(inFile, line)) {
-//        if(sourceTargetPhrases.size() == step) {
-//            m_rnkHash.AddRange(sourceTargetPhrases);
-//            sourceTargetPhrases.clear();
-//        }
-//   
-//        std::vector<std::string> tokens;
-//        TokenizeMultiCharSeparator(tokens, line, m_separator);
-//        
-//        if (numElement == NOT_FOUND) {
-//            // init numElement
-//            numElement = tokens.size();
-//            assert(numElement >= 3);
-//            // extended style: source ||| target ||| scores ||| [alignment] ||| [counts]
-//        }
-//       
-//        if (tokens.size() != numElement) {
-//            std::stringstream strme;
-//            strme << "Syntax error at " << m_inPath << ":" << line_num;
-//            UserMessage::Add(strme.str());
-//            abort();
-//        }   
-//        
-//        std::string sourcePhraseString = tokens[0];
-//        
-//        bool isLHSEmpty = (sourcePhraseString.find_first_not_of(" \t", 0)
-//                           == std::string::npos);
-//        if (isLHSEmpty) {
-//            TRACE_ERR( m_inPath << ":" << line_num
-//                      << ": pt entry contains empty target, skipping\n");
-//            continue;
-//        }
-//       
-//        if(sourcePhraseString != prevSourcePhrase && prevSourcePhrase != "") {            
-//            ++phr_num;
-//            if(phr_num % 100000 == 0)
-//              std::cerr << ".";
-//            if(phr_num % 5000000 == 0)
-//              std::cerr << "[" << phr_num << "]" << std::endl;
-//        
-//            m_ranks.resize(line_num + 1);
-//            int r = 0;
-//            while(!rankQueue.empty()) {
-//                m_ranks[rankQueue.top().second] = r++;
-//                rankQueue.pop();
-//            }
-//        }
-//        
-//        prevSourcePhrase = sourcePhraseString;
-//        
-//        std::string sourceTargetPhrase = makeSourceTargetKey(tokens[0], tokens[1]);
-//        sourceTargetPhrases.push_back(sourceTargetPhrase);
-//        
-//        std::vector<float> scores = Tokenize<float>(tokens[2]);
-//        rankQueue.push(std::make_pair(scores[2], line_num));
-//        line_num++;
-//    }
-//    
-//    m_rnkHash.AddRange(sourceTargetPhrases);
-//    
-//#ifdef WITH_THREADS
-//    m_rnkHash.WaitAll();
-//#endif
-//
-//    m_ranks.resize(line_num + 1);
-//    int r = 0;
-//    while(!rankQueue.empty()) {
-//        m_ranks[rankQueue.top().second] = r++;
-//        rankQueue.pop();
-//    }
-//
-//    std::cerr << std::endl;
 }
 
 inline std::string PhrasetableCreator::makeSourceKey(std::string &source) {
@@ -836,6 +751,8 @@ void PhrasetableCreator::flushRankedQueue(bool force) {
     size_t step = 1ul << 10;
     
     while(!m_queue.empty() && m_lastFlushedLine + 1 == m_queue.top().getLine()) {
+        m_lastFlushedLine++;
+
         PackedItem pi = m_queue.top();
         m_queue.pop();
         
@@ -862,12 +779,11 @@ void PhrasetableCreator::flushRankedQueue(bool force) {
             }
         }
         
+        //std::cerr << "rnk: " << m_lastFlushedLine << " " << pi.getLine() << pi.getSrc() << " :: " << pi.getTrg() << pi.getScore() << std::endl;
         m_lastSourceRange.push_back(pi.getTrg());
         
-        m_rankQueue.push(std::make_pair(pi.getScore(), m_lastFlushedLine));
+        m_rankQueue.push(std::make_pair(pi.getScore(), pi.getLine()));
         m_lastFlushedSourcePhrase = pi.getSrc();
-        
-        m_lastFlushedLine++;
     }
     
     if(force) {    
@@ -886,7 +802,7 @@ void PhrasetableCreator::flushRankedQueue(bool force) {
         }
 
         m_lastFlushedLine = -1;
-        m_lastFlushedSourceNum = -1;
+        m_lastFlushedSourceNum = 0;
     }
 }
 
@@ -963,7 +879,7 @@ void PhrasetableCreator::flushEncodedQueue(bool force) {
         m_srcHash.FinalizeSave();
         
         m_lastFlushedLine = -1;
-        m_lastFlushedSourceNum = -1;
+        m_lastFlushedSourceNum = 0;
     }
 }
 
