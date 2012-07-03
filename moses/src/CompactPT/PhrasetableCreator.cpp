@@ -39,7 +39,14 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath,
     m_lastFlushedSourcePhrase("")
 {
     
+    printInfo();
+    
     addTargetSymbolId(m_phraseStopSymbol);
+    
+    size_t cur_pass = 1;
+    size_t all_passes = 2;
+    if(m_coding == PREnc)
+        all_passes = 3;
     
     m_scoreCounters.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
     for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
@@ -54,30 +61,53 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath,
         loadLexicalTable(path + "/lex.f2e");
     }
     else if(m_coding == PREnc) {
+        std::cerr << "Pass " << cur_pass << "/" << all_passes << ": Creating hash function for rank assignment" << std::endl;
+        cur_pass++;
         createRankHash();
     }
     
     // 1st pass
+    std::cerr << "Pass " << cur_pass << "/" << all_passes << ": Creating source phrase index + Encoding target phrases" << std::endl;
     m_srcHash.BeginSave(m_outFile);   
     encodeTargetPhrases();
     
-    std::cerr << "EncodedPhrases: " << m_encodedTargetPhrases.size() << std::endl;
-        
-    std::cerr << "SymbolCounter: " << m_symbolCounter.size() << std::endl;
-    for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
-        it != m_scoreCounters.end(); it++)
-        std::cerr << "ScoreCounter: " << (*it)->size() << std::endl;
-    std::cerr << "AlignCounter: " << m_alignCounter.size() << std::endl;
+    cur_pass++;
     
+    std::cerr << "Intermezzo: Calculating Huffman code sets" << std::endl;
     calcHuffmanCodes();
     
     // 2nd pass
+    std::cerr << "Pass " << cur_pass << "/" << all_passes << ": Compressing target phrases" << std::endl;
     compressTargetPhrases();
     
-    std::cerr << "CompressedPhrases: " << m_compressedTargetPhrases.size() << std::endl;
-
+    std::cerr << "Saving to " << m_outPath << std::endl;
     save();
+    std::cerr << "Done" << std::endl;
     std::fclose(m_outFile);
+}
+    
+void PhrasetableCreator::printInfo() {
+    std::string encodings[3] = {"Huffman", "Huffman + REnc", "Huffman + PREnc"};
+    
+    std::cerr << "Used options:" << std::endl;
+    std::cerr << "\tText phrase table will be read from: " << m_inPath << std::endl;
+    std::cerr << "\tOuput phrase table will be written to: " << m_outPath << std::endl;
+    std::cerr << "\tStep size for source landmark phrases: 2^" << m_orderBits << "=" << (1ul << m_orderBits) << std::endl;
+    std::cerr << "\tSource phrase fingerprint size: " << m_fingerPrintBits << " bits / P(fp)=" << (float(1)/(1ul << m_fingerPrintBits)) << std::endl;
+    std::cerr << "\tSelected target phrase encoding: " << encodings[m_coding] << std::endl;    
+    std::cerr << "\tNumber of score components in phrase table: " << m_numScoreComponent << std::endl;    
+    std::cerr << "\tSingle Huffman code set for score components: " << (m_multipleScoreTrees ? "no" : "yes") << std::endl;    
+    std::cerr << "\tUsing score quantization: ";
+    if(m_quantize)
+        std::cerr << m_quantize << " best" << std::endl;
+    else
+        std::cerr << "no" << std::endl;
+    std::cerr << "\tExplicitly included alignment information: " << (m_useAlignmentInfo ? "yes" : "no") << std::endl;    
+    
+#ifdef WITH_THREADS    
+    std::cerr << "\tRunning with " << m_threads << " threads" << std::endl;
+#endif
+    std::cerr << std::endl;
 }
     
 void PhrasetableCreator::save() {
@@ -143,28 +173,27 @@ void PhrasetableCreator::save() {
 void PhrasetableCreator::loadLexicalTable(std::string filePath) {
     std::vector<SrcTrgProb> t_lexTable;
       
-    std::cerr << "Reading in lexical table from " << filePath << std::endl;
+    std::cerr << "Reading in lexical table for Rank Encoding" << std::endl;
     std::ifstream lexIn(filePath.c_str(), std::ifstream::in);
     std::string src, trg;
     float prob;
     
     // Reading in the translation probability lexicon
     
+    std::cerr << "\tLoading from " << filePath << std::endl;
     while(lexIn >> trg >> src >> prob) {
-        if(t_lexTable.size() % 10000 == 0)
-            std::cerr << ".";
+        //if(t_lexTable.size() % 10000 == 0)
+        //    std::cerr << ".";
         t_lexTable.push_back(SrcTrgProb(SrcTrgString(src, trg), prob));
         addSourceSymbolId(src);
         addTargetSymbolId(trg);
     }
-    std::cerr << std::endl;
     
     // Sorting lexicon by source words by lexicographical order, corresponding
     // target words by decreasing probability.
     
-    std::cerr << "Read in " << t_lexTable.size() << " lexical pairs" << std::endl;
+    std::cerr << "\tSorting according to translation rank" << std::endl;
     std::sort(t_lexTable.begin(), t_lexTable.end(), SrcTrgProbSorter());
-    std::cerr << "Sorted" << std::endl;
     
     // Re-assigning source word ids in lexicographical order
     
@@ -200,12 +229,12 @@ void PhrasetableCreator::loadLexicalTable(std::string filePath) {
         size_t trgIdx = getTargetSymbolId(it->first.second);        
         m_lexicalTable.push_back(SrcTrg(srcIdx, trgIdx));
         
-        if(m_lexicalTable.size() % 10000 == 0)
-            std::cerr << ".";
+        //if(m_lexicalTable.size() % 10000 == 0)
+        //    std::cerr << ".";
     
         srcWord = it->first.first;
     }
-    std::cerr << "Loaded " << m_lexicalTable.size() << " lexical pairs" << std::endl;
+    std::cerr << "\tLoaded " << m_lexicalTable.size() << " lexical pairs" << std::endl;
     std::cerr << std::endl;
 }
 
@@ -272,31 +301,11 @@ void PhrasetableCreator::compressTargetPhrases() {
 }
 
 void PhrasetableCreator::calcHuffmanCodes() {
-    std::cerr << "Creating Huffman codes for " << m_symbolCounter.size()
-        << " symbols" << std::endl;
+    std::cerr << "\tCreating Huffman codes for " << m_symbolCounter.size()
+        << " target phrase symbols" << std::endl;
          
     m_symbolTree = new SymbolTree(m_symbolCounter.begin(),
                                   m_symbolCounter.end());      
-    {
-        size_t sum = 0, sumall = 0;
-        for(SymbolCounter::iterator it = m_symbolCounter.begin();
-            it != m_symbolCounter.end(); it++) {
-            sumall += it->second * m_symbolTree->encode(it->first).size();
-            sum    += it->second;
-        }
-        float bits = float(sumall)/sum;
-        std::cerr << bits << " bits per encoded symbol" << std::endl;
-        
-        float entropy = 0;
-        for(SymbolCounter::iterator it = m_symbolCounter.begin();
-            it != m_symbolCounter.end(); it++) {
-            entropy += -float(it->second)/float(sum)
-                       * log(float(it->second)/float(sum))/log(2);
-        }
-        std::cerr << "Entropy for encoded symbols: " << entropy << std::endl;
-        
-    }
-    
     
     std::vector<ScoreTree*>::iterator treeIt = m_scoreTrees.begin();
     for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
@@ -305,7 +314,7 @@ void PhrasetableCreator::calcHuffmanCodes() {
         if(m_quantize)
             (*it)->quantize(m_quantize);
         
-        std::cerr << "Creating Huffman codes for " << (*it)->size()
+        std::cerr << "\tCreating Huffman codes for " << (*it)->size()
             << " scores" << std::endl;
         
         *treeIt = new ScoreTree((*it)->begin(), (*it)->end());
@@ -313,29 +322,11 @@ void PhrasetableCreator::calcHuffmanCodes() {
     }
     
     if(m_useAlignmentInfo) {
-        std::cerr << "Creating Huffman codes for " << m_alignCounter.size()
+        std::cerr << "\tCreating Huffman codes for " << m_alignCounter.size()
             << " alignment points" << std::endl;
         m_alignTree = new AlignTree(m_alignCounter.begin(), m_alignCounter.end());
-        {  
-            size_t sum = 0, sumall = 0;
-            for(AlignCounter::iterator it = m_alignCounter.begin();
-                it != m_alignCounter.end(); it++) {
-                sumall += it->second * m_alignTree->encode(it->first).size();
-                sum    += it->second;
-            }
-            
-            float bits = float(sumall)/sum;
-            std::cerr << bits << " bits per encoded alignment point" << std::endl;
-            
-            float entropy = 0;
-            for(AlignCounter::iterator it = m_alignCounter.begin();
-                it != m_alignCounter.end(); it++) {
-                entropy += -float(it->second)/float(sum)
-                           * log(float(it->second)/float(sum))/log(2);
-            }
-            std::cerr << "Entropy for encoded alignment point: " << entropy << std::endl;
-        }
     }
+    std::cerr << std::endl;
 }
 
 
@@ -767,8 +758,9 @@ void PhrasetableCreator::flushRankedQueue(bool force) {
                 m_lastFlushedSourceNum++;
                 if(m_lastFlushedSourceNum % 100000 == 0)
                     std::cerr << ".";
-                if(m_lastFlushedSourceNum % 5000000 == 0)
+                if(m_lastFlushedSourceNum % 5000000 == 0) {
                     std::cerr << "[" << m_lastFlushedSourceNum << "]" << std::endl;
+                }
                     
                 m_ranks.resize(m_lastFlushedLine + 1);
                 int r = 0;
@@ -803,6 +795,8 @@ void PhrasetableCreator::flushRankedQueue(bool force) {
 
         m_lastFlushedLine = -1;
         m_lastFlushedSourceNum = 0;
+        
+        std::cerr << std::endl << std::endl;
     }
 }
 
@@ -880,6 +874,8 @@ void PhrasetableCreator::flushEncodedQueue(bool force) {
         
         m_lastFlushedLine = -1;
         m_lastFlushedSourceNum = 0;
+
+        std::cerr << std::endl << std::endl;
     }
 }
 
@@ -904,8 +900,10 @@ void PhrasetableCreator::flushCompressedQueue(bool force) {
         }
     }
     
-    if(force)
-        m_lastFlushedLine = -1;    
+    if(force) {
+        m_lastFlushedLine = -1;
+        std::cerr << std::endl << std::endl;
+    }
 }
 
 //****************************************************************************//

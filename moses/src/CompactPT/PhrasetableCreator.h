@@ -249,6 +249,7 @@ class PhrasetableCreator {
     std::vector<std::string> m_lastCollection;
     
     void save();
+    void printInfo();
     
     void addSourceSymbolId(std::string& symbol);
     unsigned getSourceSymbolId(std::string& symbol);
