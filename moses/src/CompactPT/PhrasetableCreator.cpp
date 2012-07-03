@@ -209,94 +209,107 @@ void PhrasetableCreator::loadLexicalTable(std::string filePath) {
     std::cerr << std::endl;
 }
 
-void PhrasetableCreator::createRankHash() {
-    
-    // @TODO: compute rank in memory per source phrase 
-    
+void PhrasetableCreator::createRankHash() {    
     InputFileStream inFile(m_inPath);
-     
-    std::string line, prevSourcePhrase = "";
-    size_t phr_num = 0;
-    size_t line_num = 0;
-    size_t numElement = NOT_FOUND;
-    
-    size_t step = 1ul << m_orderBits;
-    
-    std::priority_queue<std::pair<float, size_t> > rankQueue;
-    std::vector<std::string> sourceTargetPhrases;
-    
-    while(std::getline(inFile, line)) {
-        if(sourceTargetPhrases.size() == step) {
-            m_rnkHash.AddRange(sourceTargetPhrases);
-            sourceTargetPhrases.clear();
-        }
-   
-        std::vector<std::string> tokens;
-        TokenizeMultiCharSeparator(tokens, line, m_separator);
-        
-        if (numElement == NOT_FOUND) {
-            // init numElement
-            numElement = tokens.size();
-            assert(numElement >= 3);
-            // extended style: source ||| target ||| scores ||| [alignment] ||| [counts]
-        }
-       
-        if (tokens.size() != numElement) {
-            std::stringstream strme;
-            strme << "Syntax error at " << m_inPath << ":" << line_num;
-            UserMessage::Add(strme.str());
-            abort();
-        }   
-        
-        std::string sourcePhraseString = tokens[0];
-        
-        bool isLHSEmpty = (sourcePhraseString.find_first_not_of(" \t", 0)
-                           == std::string::npos);
-        if (isLHSEmpty) {
-            TRACE_ERR( m_inPath << ":" << line_num
-                      << ": pt entry contains empty target, skipping\n");
-            continue;
-        }
-       
-        if(sourcePhraseString != prevSourcePhrase && prevSourcePhrase != "") {            
-            ++phr_num;
-            if(phr_num % 100000 == 0)
-              std::cerr << ".";
-            if(phr_num % 5000000 == 0)
-              std::cerr << "[" << phr_num << "]" << std::endl;
-        
-            m_ranks.resize(line_num + 1);
-            int r = 0;
-            while(!rankQueue.empty()) {
-                m_ranks[rankQueue.top().second] = r++;
-                rankQueue.pop();
-            }
-        }
-        
-        prevSourcePhrase = sourcePhraseString;
-        
-        std::string sourceTargetPhrase = makeSourceTargetKey(tokens[0], tokens[1]);
-        sourceTargetPhrases.push_back(sourceTargetPhrase);
-        
-        std::vector<float> scores = Tokenize<float>(tokens[2]);
-        rankQueue.push(std::make_pair(scores[2], line_num));
-        line_num++;
-    }
-    
-    m_rnkHash.AddRange(sourceTargetPhrases);
-    
+
 #ifdef WITH_THREADS
-    m_rnkHash.WaitAll();
-#endif
-
-    m_ranks.resize(line_num + 1);
-    int r = 0;
-    while(!rankQueue.empty()) {
-        m_ranks[rankQueue.top().second] = r++;
-        rankQueue.pop();
+    boost::thread_group threads;
+    for (int i = 0; i < m_threads; ++i) {
+        RankingTask* rt = new RankingTask(inFile, *this);    
+        threads.create_thread(*rt);
     }
-
-    std::cerr << std::endl;
+    threads.join_all();
+#else
+    RankingTask* rt = new RankingTask(inFile, *this);
+    (*rt)();
+    delete rt;
+#endif
+    flushRankedQueue(true);
+    
+//    InputFileStream inFile(m_inPath);
+//     
+//    std::string line, prevSourcePhrase = "";
+//    size_t phr_num = 0;
+//    size_t line_num = 0;
+//    size_t numElement = NOT_FOUND;
+//    
+//    size_t step = 1ul << m_orderBits;
+//    
+//    std::priority_queue<std::pair<float, size_t> > rankQueue;
+//    std::vector<std::string> sourceTargetPhrases;
+//    
+//    while(std::getline(inFile, line)) {
+//        if(sourceTargetPhrases.size() == step) {
+//            m_rnkHash.AddRange(sourceTargetPhrases);
+//            sourceTargetPhrases.clear();
+//        }
+//   
+//        std::vector<std::string> tokens;
+//        TokenizeMultiCharSeparator(tokens, line, m_separator);
+//        
+//        if (numElement == NOT_FOUND) {
+//            // init numElement
+//            numElement = tokens.size();
+//            assert(numElement >= 3);
+//            // extended style: source ||| target ||| scores ||| [alignment] ||| [counts]
+//        }
+//       
+//        if (tokens.size() != numElement) {
+//            std::stringstream strme;
+//            strme << "Syntax error at " << m_inPath << ":" << line_num;
+//            UserMessage::Add(strme.str());
+//            abort();
+//        }   
+//        
+//        std::string sourcePhraseString = tokens[0];
+//        
+//        bool isLHSEmpty = (sourcePhraseString.find_first_not_of(" \t", 0)
+//                           == std::string::npos);
+//        if (isLHSEmpty) {
+//            TRACE_ERR( m_inPath << ":" << line_num
+//                      << ": pt entry contains empty target, skipping\n");
+//            continue;
+//        }
+//       
+//        if(sourcePhraseString != prevSourcePhrase && prevSourcePhrase != "") {            
+//            ++phr_num;
+//            if(phr_num % 100000 == 0)
+//              std::cerr << ".";
+//            if(phr_num % 5000000 == 0)
+//              std::cerr << "[" << phr_num << "]" << std::endl;
+//        
+//            m_ranks.resize(line_num + 1);
+//            int r = 0;
+//            while(!rankQueue.empty()) {
+//                m_ranks[rankQueue.top().second] = r++;
+//                rankQueue.pop();
+//            }
+//        }
+//        
+//        prevSourcePhrase = sourcePhraseString;
+//        
+//        std::string sourceTargetPhrase = makeSourceTargetKey(tokens[0], tokens[1]);
+//        sourceTargetPhrases.push_back(sourceTargetPhrase);
+//        
+//        std::vector<float> scores = Tokenize<float>(tokens[2]);
+//        rankQueue.push(std::make_pair(scores[2], line_num));
+//        line_num++;
+//    }
+//    
+//    m_rnkHash.AddRange(sourceTargetPhrases);
+//    
+//#ifdef WITH_THREADS
+//    m_rnkHash.WaitAll();
+//#endif
+//
+//    m_ranks.resize(line_num + 1);
+//    int r = 0;
+//    while(!rankQueue.empty()) {
+//        m_ranks[rankQueue.top().second] = r++;
+//        rankQueue.pop();
+//    }
+//
+//    std::cerr << std::endl;
 }
 
 inline std::string PhrasetableCreator::makeSourceKey(std::string &source) {
@@ -815,6 +828,69 @@ std::string PhrasetableCreator::compressEncodedCollection(std::string encodedCol
     return output;
 }
 
+void PhrasetableCreator::addRankedLine(PackedItem& pi) {
+    m_queue.push(pi);
+}
+
+void PhrasetableCreator::flushRankedQueue(bool force) {
+    size_t step = 1ul << 10;
+    
+    while(!m_queue.empty() && m_lastFlushedLine + 1 == m_queue.top().getLine()) {
+        PackedItem pi = m_queue.top();
+        m_queue.pop();
+        
+        if(m_lastSourceRange.size() == step) {
+            m_rnkHash.AddRange(m_lastSourceRange);
+            m_lastSourceRange.clear();
+        }
+        
+        if(m_lastFlushedSourcePhrase != pi.getSrc()) {
+            if(m_rankQueue.size()) {
+                
+                m_lastFlushedSourceNum++;
+                if(m_lastFlushedSourceNum % 100000 == 0)
+                    std::cerr << ".";
+                if(m_lastFlushedSourceNum % 5000000 == 0)
+                    std::cerr << "[" << m_lastFlushedSourceNum << "]" << std::endl;
+                    
+                m_ranks.resize(m_lastFlushedLine + 1);
+                int r = 0;
+                while(!m_rankQueue.empty()) {
+                    m_ranks[m_rankQueue.top().second] = r++;
+                    m_rankQueue.pop();
+                }
+            }
+        }
+        
+        m_lastSourceRange.push_back(pi.getTrg());
+        
+        m_rankQueue.push(std::make_pair(pi.getScore(), m_lastFlushedLine));
+        m_lastFlushedSourcePhrase = pi.getSrc();
+        
+        m_lastFlushedLine++;
+    }
+    
+    if(force) {    
+        m_rnkHash.AddRange(m_lastSourceRange);
+        m_lastSourceRange.clear();
+    
+#ifdef WITH_THREADS
+        m_rnkHash.WaitAll();
+#endif
+
+        m_ranks.resize(m_lastFlushedLine + 1);
+        int r = 0;
+        while(!m_rankQueue.empty()) {
+            m_ranks[m_rankQueue.top().second] = r++;
+            m_rankQueue.pop();
+        }
+
+        m_lastFlushedLine = -1;
+        m_lastFlushedSourceNum = -1;
+    }
+}
+
+
 void PhrasetableCreator::addEncodedLine(PackedItem& pi) {
     m_queue.push(pi);
 }
@@ -918,6 +994,76 @@ void PhrasetableCreator::flushCompressedQueue(bool force) {
 
 //****************************************************************************//
 
+size_t RankingTask::m_lineNum = 0;
+#ifdef WITH_THREADS
+boost::mutex RankingTask::m_mutex;
+boost::mutex RankingTask::m_fileMutex;
+#endif
+
+RankingTask::RankingTask(InputFileStream& inFile, PhrasetableCreator& creator)
+  : m_inFile(inFile), m_creator(creator) {}
+  
+void RankingTask::operator()() {
+    size_t lineNum = 0;
+    
+    std::vector<std::string> lines;
+    size_t max_lines = 1000;
+    lines.reserve(max_lines);
+    
+    {
+#ifdef WITH_THREADS
+        boost::mutex::scoped_lock lock(m_fileMutex);
+#endif
+        std::string line;
+        while(lines.size() < max_lines && std::getline(m_inFile, line))
+            lines.push_back(line);
+        lineNum = m_lineNum;
+        m_lineNum += lines.size();
+    }
+    
+    std::vector<PackedItem> result;
+    result.reserve(max_lines);
+    
+    while(lines.size()) {
+        for(size_t i = 0; i < lines.size(); i++) {
+            std::vector<std::string> tokens;
+            Moses::TokenizeMultiCharSeparator(tokens, lines[i], m_creator.m_separator);
+            
+            std::vector<float> scores = Tokenize<float>(tokens[2]);
+            float sortScore = scores[2];
+            
+            std::string key1 = m_creator.makeSourceKey(tokens[0]);
+            std::string key2 = m_creator.makeSourceTargetKey(tokens[0], tokens[1]);
+            
+            PackedItem packedItem(lineNum + i, key1, key2, 0, sortScore);
+            result.push_back(packedItem);
+        }
+        lines.clear();
+        
+        {
+#ifdef WITH_THREADS
+            boost::mutex::scoped_lock lock(m_mutex);
+#endif
+            for(int i = 0; i < result.size(); i++) 
+                m_creator.addRankedLine(result[i]);
+            m_creator.flushRankedQueue();  
+        }
+        
+        result.clear();
+        lines.reserve(max_lines);
+        result.reserve(max_lines);
+        
+#ifdef WITH_THREADS
+        boost::mutex::scoped_lock lock(m_fileMutex);
+#endif
+        std::string line;
+        while(lines.size() < max_lines && std::getline(m_inFile, line))
+            lines.push_back(line);
+        lineNum = m_lineNum;
+        m_lineNum += lines.size();
+    }
+}
+
 size_t EncodingTask::m_lineNum = 0;
 #ifdef WITH_THREADS
 boost::mutex EncodingTask::m_mutex;
@@ -929,7 +1075,6 @@ EncodingTask::EncodingTask(InputFileStream& inFile, PhrasetableCreator& creator)
   
 void EncodingTask::operator()() {
     size_t lineNum = 0;
-    bool readline = false;
     
     std::vector<std::string> lines;
     size_t max_lines = 1000;
@@ -1033,9 +1178,11 @@ void CompressionTask::operator()() {
 //****************************************************************************//
 
 PackedItem::PackedItem(long line, std::string sourcePhrase,
-           std::string packedTargetPhrase, size_t rank)
+           std::string packedTargetPhrase, size_t rank,
+           float score)
   : m_line(line), m_sourcePhrase(sourcePhrase),
-    m_packedTargetPhrase(packedTargetPhrase), m_rank(rank) {}
+    m_packedTargetPhrase(packedTargetPhrase), m_rank(rank),
+    m_score(score) {}
 
 long PackedItem::getLine() const { return m_line; }
 
@@ -1044,6 +1191,8 @@ const std::string& PackedItem::getSrc() const { return m_sourcePhrase; }
 const std::string& PackedItem::getTrg() const { return m_packedTargetPhrase; }
 
 size_t PackedItem::getRank() const { return m_rank; }
+
+float PackedItem::getScore() const { return m_score; }
 
 bool operator<(const PackedItem &pi1, const PackedItem &pi2) {
     if(pi1.getLine() < pi2.getLine())

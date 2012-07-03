@@ -138,15 +138,18 @@ class PackedItem {
     std::string m_sourcePhrase;
     std::string m_packedTargetPhrase;
     size_t m_rank;
+    float m_score;
     
 public:
     PackedItem(long line, std::string sourcePhrase,
-               std::string packedTargetPhrase, size_t rank);
+               std::string packedTargetPhrase, size_t rank,
+               float m_score = 0);
     
     long getLine() const;
     const std::string& getSrc() const;
     const std::string& getTrg() const;
     size_t getRank() const;
+    float getScore() const;
 };
 
 static bool operator<(const PackedItem &pi1, const PackedItem &pi2);
@@ -242,6 +245,7 @@ class PhrasetableCreator {
     long m_lastFlushedSourceNum;
     std::string m_lastFlushedSourcePhrase;
     std::vector<std::string> m_lastSourceRange;
+    std::priority_queue<std::pair<float, size_t> > m_rankQueue;
     std::vector<std::string> m_lastCollection;
     
     void save();
@@ -287,6 +291,9 @@ class PhrasetableCreator {
     void calcHuffmanCodes();
     void compressTargetPhrases();
     
+    void addRankedLine(PackedItem& pi);
+    void flushRankedQueue(bool force = false);
+    
     std::string encodeLine(std::vector<std::string>& tokens, size_t ownRank);
     void addEncodedLine(PackedItem& pi);
     void flushEncodedQueue(bool force = false);
@@ -311,8 +318,24 @@ class PhrasetableCreator {
 #endif
                       );
     
+    friend class RankingTask;
     friend class EncodingTask;
     friend class CompressionTask;
+};
+
+class RankingTask {
+  private:
+#ifdef WITH_THREADS
+    static boost::mutex m_mutex;
+    static boost::mutex m_fileMutex;
+#endif
+    static size_t m_lineNum;
+    InputFileStream& m_inFile;
+    PhrasetableCreator& m_creator;
+    
+  public:
+    RankingTask(InputFileStream& inFile, PhrasetableCreator& creator);
+    void operator()();
 };
 
 class EncodingTask {
