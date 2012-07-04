@@ -93,6 +93,12 @@ std::string PhraseDictionaryMemoryHashed::makeSourceKey(std::string &source) {
 TargetPhraseVectorPtr
 PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
                                                            &sourcePhrase) {
+                                  
+  TargetPhraseVectorPtr cachedPhraseColl
+    = m_phraseDecoder->m_decodingCache.retrieve(sourcePhrase);
+  if(cachedPhraseColl != NULL)
+    return cachedPhraseColl;
+                                  
   // Retrieve source phrase identifier
   std::string sourcePhraseString = sourcePhrase.GetStringRep(*m_input);
   size_t sourcePhraseId = m_hash[makeSourceKey(sourcePhraseString)];
@@ -131,11 +137,11 @@ PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhra
     return NULL;
   
   // Only for PREnc: Check whether phrase pair has been created previously
-  TargetPhraseCollection* cachedPhraseColl
-    = const_cast<PhraseDictionaryMemoryHashed*>(this)->RetrieveFromCache(sourcePhrase);
-  if(cachedPhraseColl != NULL)
-    return cachedPhraseColl;
-  
+  //TargetPhraseCollection* cachedPhraseColl
+  //  = const_cast<PhraseDictionaryMemoryHashed*>(this)->RetrieveFromCache(sourcePhrase);
+  //if(cachedPhraseColl != NULL)
+  //  return cachedPhraseColl;
+
   // Retrieve target phrase collection from phrase table
   TargetPhraseVectorPtr decodedPhraseColl
     = const_cast<PhraseDictionaryMemoryHashed*>(this)->CreateTargetPhraseCollection(sourcePhrase);

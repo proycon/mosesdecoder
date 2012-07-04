@@ -272,10 +272,10 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
               return TargetPhraseVectorPtr();
             
             TargetPhraseVectorPtr subTpv = tpv;
+            
             if(srcEnd - srcStart + 1 != srcSize) {
               Phrase subPhrase = sourcePhrase.GetSubString(WordsRange(srcStart, srcEnd));
-              m_phraseDictionary.GetTargetPhraseCollection(subPhrase);
-              subTpv = m_decodingCache.retrieve(subPhrase);
+              subTpv = m_phraseDictionary.CreateTargetPhraseCollection(subPhrase);
             }
             
             // false positive consistency check
@@ -341,7 +341,8 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   
   if(m_coding == PREnc)
     // cache the first m_maxRank target phrases for later decoding
-    m_decodingCache.cache(sourcePhrase, tpv, m_maxRank);
+    //m_decodingCache.cache(sourcePhrase, tpv, m_maxRank);
+    m_decodingCache.cache(sourcePhrase, tpv, 0);
   
   return tpv;
 }

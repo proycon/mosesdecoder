@@ -31,7 +31,9 @@ namespace Moses {
 class PhraseDictionaryMemoryHashed;
 
 class PhraseDecoder {
-  private:
+  protected:
+    
+    friend class PhraseDictionaryMemoryHashed;
     
     typedef std::pair<unsigned char, unsigned char> AlignPoint;
     typedef std::pair<unsigned, unsigned> SrcTrg;
