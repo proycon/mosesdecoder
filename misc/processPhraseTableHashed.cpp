@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
   bool useAlignmentInfo = false;
   bool multipleScoreTrees = true;
   size_t quantize = 0;
-  size_t maxRank = 0;
+  size_t maxRank = 100;
   size_t threads = 1;
   
   if(1 >= argc) {

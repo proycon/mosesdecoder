@@ -57,36 +57,21 @@ bool PhraseDictionaryMemoryHashed::Load(const std::vector<FactorType> &input
   m_languageModels = &languageModels; 
   m_weightWP = weightWP;
 
-  if(m_implementation == MemoryHashedBinary)
-    return LoadBinary(filePath);
-  else
-    return LoadBinary(filePath);
-    
-  return false;
-}
+  // @TODO: look at this function
+  std::string fullFilePath = filePath;
+  if (FileExists(filePath + ".mph"))
+      fullFilePath += ".mph";
 
-bool PhraseDictionaryMemoryHashed::LoadBinary(std::string filePath) {
-    if (FileExists(filePath + ".mph"))
-        filePath += ".mph";
+  m_phraseDecoder = new PhraseDecoder(*this, m_input, m_output, m_feature,
+                                  m_numScoreComponent, m_weight, m_weightWP,
+                                  m_languageModels);
 
-    m_phraseDecoder = new PhraseDecoder(*this, m_input, m_output, m_feature,
-                                    m_numScoreComponent, m_weight, m_weightWP,
-                                    m_languageModels);
+  std::FILE* pFile = std::fopen(fullFilePath.c_str() , "r");
+  m_hash.LoadIndex(pFile);
   
-    std::FILE* pFile = std::fopen(filePath.c_str() , "r");
-    m_hash.LoadIndex(pFile);
-    //size_t hashSize = m_hash.Load(pFile);
-    //std::cerr << "Total HashIndex size: " << float(hashSize)/(1024*1024) << " M" << std::endl;
-
-    size_t coderSize = m_phraseDecoder->load(pFile);
-    std::cerr << "Total PhraseCoder size: " << float(coderSize)/(1024*1024) << " M" << std::endl;
-
-    size_t phraseSize = m_targetPhrases.load(pFile, true);
-    std::cerr << "Total TargetPhrases size: " << float(phraseSize)/(1024*1024) << " M" << std::endl;
-    //std::fclose(pFile);
-    
-    return coderSize && phraseSize;    
-    //return hashSize && coderSize && phraseSize;
+  size_t coderSize = m_phraseDecoder->load(pFile);
+  size_t phraseSize = m_targetPhrasesMapped.load(pFile, true);
+  return coderSize && phraseSize;    
 }
 
 std::string PhraseDictionaryMemoryHashed::makeSourceKey(std::string &source) {
@@ -96,18 +81,13 @@ std::string PhraseDictionaryMemoryHashed::makeSourceKey(std::string &source) {
 TargetPhraseVectorPtr
 PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
                                                            &sourcePhrase) {
-
-  //TargetPhraseVectorPtr tpv = m_decodingCache.retrieve(sourcePhrase);
-  //if(tpv != NULL)
-  //  return tpv;
-
   // Retrieve source phrase identifier
   std::string sourcePhraseString = sourcePhrase.GetStringRep(*m_input);
   size_t sourcePhraseId = m_hash[makeSourceKey(sourcePhraseString)];
   
   if(sourcePhraseId != m_hash.GetSize()) {    
     // Retrieve compressed and encoded target phrase collection
-    std::string encodedPhraseCollection = m_targetPhrases[sourcePhraseId];
+    std::string encodedPhraseCollection = m_targetPhrasesMapped[sourcePhraseId];
 
     // Decompress and decode target phrase collection
     TargetPhraseVectorPtr decodedPhraseColl =
@@ -168,8 +148,6 @@ PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhra
 PhraseDictionaryMemoryHashed::~PhraseDictionaryMemoryHashed() {
   if(m_phraseDecoder)
     delete m_phraseDecoder;
-    
-  CleanUp();
 }
 
 //TO_STRING_BODY(PhraseDictionaryMemoryHashed)

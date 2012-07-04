@@ -68,7 +68,7 @@ PhraseDictionaryFeature::PhraseDictionaryFeature
   const StaticData& staticData = StaticData::Instance();
   const_cast<ScoreIndexManager&>(staticData.GetScoreIndexManager()).AddScoreProducer(this);
   if (implementation == Memory || implementation == SCFG || implementation == SuffixArray
-      || implementation == MemoryHashedText || implementation == MemoryHashedBinary) {
+      || implementation == CompactDisk || implementation == CompactMemory) {
     m_useThreadSafePhraseDictionary = true;
   } else {
     m_useThreadSafePhraseDictionary = false;
@@ -113,29 +113,7 @@ PhraseDictionary* PhraseDictionaryFeature::LoadPhraseTable(const TranslationSyst
     assert(ret);
     return pdm;
   }
-  else if (m_implementation == MemoryHashedText) {
-    // memory phrase table
-    VERBOSE(2,"using hashed tables" << std::endl);
-    if (!FileExists(m_filePath) && FileExists(m_filePath + ".gz")) {
-      m_filePath += ".gz";
-      VERBOSE(2,"Using gzipped file" << std::endl);
-    }
-    if (staticData.GetInputType() != SentenceInput) {
-      UserMessage::Add("Must use binary phrase table for this input type");
-      assert(false);
-    }
-
-    PhraseDictionaryMemoryHashed* pdm  = new PhraseDictionaryMemoryHashed(m_numScoreComponent, m_implementation, this);
-    bool ret = pdm->Load(GetInput(), GetOutput()
-                         , m_filePath
-                         , m_weight
-                         , m_tableLimit
-                         , system->GetLanguageModels()
-                         , system->GetWeightWordPenalty());
-    assert(ret);
-    return pdm;
-  }
-  else if (m_implementation == MemoryHashedBinary) {
+  else if (m_implementation == CompactDisk || m_implementation == CompactMemory) {
     // memory phrase table
     VERBOSE(2,"using hashed tables" << std::endl);
     if (staticData.GetInputType() != SentenceInput) {

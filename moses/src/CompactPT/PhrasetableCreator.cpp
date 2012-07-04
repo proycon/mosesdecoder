@@ -95,7 +95,14 @@ void PhrasetableCreator::printInfo() {
     std::cerr << "\tOuput phrase table will be written to: " << m_outPath << std::endl;
     std::cerr << "\tStep size for source landmark phrases: 2^" << m_orderBits << "=" << (1ul << m_orderBits) << std::endl;
     std::cerr << "\tSource phrase fingerprint size: " << m_fingerPrintBits << " bits / P(fp)=" << (float(1)/(1ul << m_fingerPrintBits)) << std::endl;
-    std::cerr << "\tSelected target phrase encoding: " << encodings[m_coding] << std::endl;    
+    std::cerr << "\tSelected target phrase encoding: " << encodings[m_coding] << std::endl;
+    if(m_coding == PREnc) {
+        std::cerr << "\tMaxiumum allowed rank for PREnc: ";
+        if(m_maxRank)
+            std::cerr << "unlimited" << std::endl;
+        else
+            std::cerr << m_maxRank << std::endl;    
+    }
     std::cerr << "\tNumber of score components in phrase table: " << m_numScoreComponent << std::endl;    
     std::cerr << "\tSingle Huffman code set for score components: " << (m_multipleScoreTrees ? "no" : "yes") << std::endl;    
     std::cerr << "\tUsing score quantization: ";

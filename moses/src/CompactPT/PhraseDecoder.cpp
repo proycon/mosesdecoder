@@ -155,7 +155,7 @@ size_t PhraseDecoder::load(std::FILE* in) {
 TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   std::string encoded, const Phrase &sourcePhrase) {
 
-  typedef std::pair<size_t, size_t> AlignPoint2;
+  typedef std::pair<size_t, size_t> AlignPointSizeT;
 
   std::vector<int> sourceWords;
   if(m_coding == REnc) {
@@ -167,13 +167,14 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
     }
   }
   
+  // Not using TargetPhraseCollection avoiding "new" operator 
   TargetPhraseVectorPtr tpv(new TargetPhraseVector());
 
   unsigned phraseStopSymbol = 0;
   AlignPoint alignStopSymbol(-1, -1);
   
   std::vector<float> scores;
-  std::set<AlignPoint2> alignment;
+  std::set<AlignPointSizeT> alignment;
   
   enum DecodeState { New, Symbol, Score, Alignment, Add } state = New;
   
@@ -187,9 +188,10 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   while(encodedBitStream.remainingBits()) {
      
     if(state == New) {
-      // Heap allocation in threads!          
+      // Creating new TargetPhrase on the heap, much faster than using "new"
       tpv->push_back(TargetPhrase(Output));
       targetPhrase = &tpv->back();
+      
       targetPhrase->SetSourcePhrase(&sourcePhrase);
       alignment.clear();
       scores.clear();
@@ -244,6 +246,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
           targetPhrase->AddWord(word);
         }
         else if(m_coding == PREnc) {
+          // if the symbol is just a word
           if(getPREncType(symbol) == 1) {
             unsigned decodedSymbol = decodePREncSymbol1(symbol);
             Word word;
@@ -251,6 +254,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
                                   getTargetSymbol(decodedSymbol), false);
             targetPhrase->AddWord(word);
           }
+          // if the symbol is a subphrase pointer
           else {
             int left = decodePREncSymbol2Left(symbol);
             int right = decodePREncSymbol2Right(symbol);
@@ -262,6 +266,8 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             // false positive consistency check
             if(0 > srcStart || srcStart > srcEnd || srcEnd >= srcSize)
               return TargetPhraseVectorPtr();
+            
+            // false positive consistency check
             if(m_maxRank && rank > m_maxRank)
               return TargetPhraseVectorPtr();
             
@@ -274,6 +280,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             
             // false positive consistency check
             if(subTpv != NULL && rank < subTpv->size()) {
+              // insert the subphrase into the main target phrase
               TargetPhrase& subTp = subTpv->at(rank);
               targetPhrase->Append(subTp);
               if(StaticData::Instance().UseAlignmentInfo()) {
@@ -316,7 +323,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
       }
       else {
         if(StaticData::Instance().UseAlignmentInfo())  
-          alignment.insert(AlignPoint2(alignPoint));
+          alignment.insert(AlignPointSizeT(alignPoint));
       }
     }
     
@@ -333,6 +340,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   }
   
   if(m_coding == PREnc)
+    // cache the first m_maxRank target phrases for later decoding
     m_decodingCache.cache(sourcePhrase, tpv, m_maxRank);
   
   return tpv;

@@ -37,7 +37,7 @@ int main(int argc,char **argv) {
   }
   
   size_t numScoreComponent = 5;  
-  PhraseDictionaryMemoryHashed pt(numScoreComponent, MemoryHashedBinary, NULL);
+  PhraseDictionaryMemoryHashed pt(numScoreComponent, CompactDisk, NULL);
   
   std::vector<FactorType> input;
   input.push_back(0);

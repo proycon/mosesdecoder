@@ -44,7 +44,8 @@ class PhraseDecoder;
 class PhraseDictionaryMemoryHashed : public PhraseDictionary
 {
 protected:
-  
+  friend class PhraseDecoder;
+
   typedef std::map<Phrase, TargetPhraseCollection*> PhraseCache;
 #ifdef WITH_THREADS
   boost::mutex m_sentenceMutex;
@@ -52,18 +53,16 @@ protected:
 #else
   typedef PhraseCache SentenceCache;
 #endif
-  
   SentenceCache m_sentenceCache;
   
-  friend class PhraseDecoder;
-
   size_t m_orderBits; 
   size_t m_fingerPrintBits;
   
   BlockHashIndex m_hash;
   PhraseDecoder* m_phraseDecoder;
   
-  StringVector<unsigned char, size_t, MmapAllocator> m_targetPhrases;
+  StringVector<unsigned char, size_t, MmapAllocator>  m_targetPhrasesMapped;
+  StringVector<unsigned char, size_t, std::allocator> m_targetPhrasesMemory;
   
   PhraseTableImplementation m_implementation;
   
@@ -97,8 +96,6 @@ public:
             , size_t tableLimit
             , const LMList &languageModels
             , float weightWP);
-  
-  bool LoadBinary(std::string filePath);
 
   const TargetPhraseCollection* GetTargetPhraseCollection(const Phrase &source) const;
 

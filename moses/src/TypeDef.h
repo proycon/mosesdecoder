@@ -177,8 +177,8 @@ enum PhraseTableImplementation {
   ,SCFG					= 6
   //,BerkeleyDb	= 7
   ,SuffixArray	= 8
-  ,MemoryHashedText = 9
-  ,MemoryHashedBinary = 10
+  ,CompactDisk = 9
+  ,CompactMemory = 10
 };
 
 enum InputTypeEnum {

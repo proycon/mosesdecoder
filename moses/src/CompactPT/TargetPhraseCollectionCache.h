@@ -26,7 +26,6 @@ class TargetPhraseCollectionCache {
   private:
     size_t m_max;
     float m_tolerance;
-    bool m_destroy;
     
     typedef std::pair<clock_t, TargetPhraseVectorPtr> LastUsed;
     typedef std::map<Phrase, LastUsed> CacheMap;
@@ -42,18 +41,9 @@ class TargetPhraseCollectionCache {
     typedef CacheMap::iterator iterator;
     typedef CacheMap::const_iterator const_iterator;
         
-    TargetPhraseCollectionCache(size_t max = 5000, float tolerance = 0.2, bool destroy = true)
-    : m_max(max), m_tolerance(tolerance), m_destroy(destroy)
+    TargetPhraseCollectionCache(size_t max = 5000, float tolerance = 0.2)
+    : m_max(max), m_tolerance(tolerance)
     {}
-    
-    ~TargetPhraseCollectionCache() {
-      if(m_destroy)
-        cleanUp();
-    }
-    
-    void setDestroy(bool destroy) {
-      m_destroy = destroy;
-    }
     
     iterator begin() {
       return m_phraseCache.begin();
