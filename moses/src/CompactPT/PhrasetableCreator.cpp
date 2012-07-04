@@ -182,8 +182,6 @@ void PhrasetableCreator::loadLexicalTable(std::string filePath) {
     
     std::cerr << "\tLoading from " << filePath << std::endl;
     while(lexIn >> trg >> src >> prob) {
-        //if(t_lexTable.size() % 10000 == 0)
-        //    std::cerr << ".";
         t_lexTable.push_back(SrcTrgProb(SrcTrgString(src, trg), prob));
         addSourceSymbolId(src);
         addTargetSymbolId(trg);
@@ -228,9 +226,6 @@ void PhrasetableCreator::loadLexicalTable(std::string filePath) {
         // Store pair of source word and target word
         size_t trgIdx = getTargetSymbolId(it->first.second);        
         m_lexicalTable.push_back(SrcTrg(srcIdx, trgIdx));
-        
-        //if(m_lexicalTable.size() % 10000 == 0)
-        //    std::cerr << ".";
     
         srcWord = it->first.first;
     }

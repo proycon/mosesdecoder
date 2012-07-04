@@ -45,13 +45,15 @@ class PhraseDictionaryMemoryHashed : public PhraseDictionary
 {
 protected:
   
+  typedef std::map<Phrase, TargetPhraseCollection*> PhraseCache;
 #ifdef WITH_THREADS
   boost::mutex m_sentenceMutex;
-  boost::unordered_map<size_t, std::vector<TargetPhraseCollection*> >  m_sentenceCache;
+  typedef std::map<size_t, PhraseCache>  SentenceCache;
 #else
-  std::vector<TargetPhraseCollection*> m_sentenceCache;
+  typedef PhraseCache SentenceCache;
 #endif
-
+  
+  SentenceCache m_sentenceCache;
   TargetPhraseCollectionCache m_decodingCache;
   
   friend class PhraseDecoder;
@@ -60,7 +62,6 @@ protected:
   size_t m_fingerPrintBits;
   
   BlockHashIndex m_hash;
-  
   PhraseDecoder* m_phraseDecoder;
   
   StringVector<unsigned char, size_t, MmapAllocator> m_targetPhrases;
@@ -106,7 +107,8 @@ public:
 
   void InitializeForInput(const Moses::InputType&);
   
-  void CacheForCleanup(TargetPhraseCollection* tpc);
+  TargetPhraseCollection* RetrieveFromCache(const Phrase &sourcePhrase);
+  void CacheForCleanup(const Phrase &source, TargetPhraseCollection* tpc);
   void CleanUp();
 
   virtual ChartRuleLookupManager *CreateRuleLookupManager(

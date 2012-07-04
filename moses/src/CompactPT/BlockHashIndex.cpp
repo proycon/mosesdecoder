@@ -69,11 +69,8 @@ size_t BlockHashIndex::GetFprint(const char* key) const {
 }
 
 size_t BlockHashIndex::GetHash(size_t i, const char* key) {
-  {
-      //boost::mutex::scoped_lock lock(m_mutex);
-      if(m_hashes[i] == 0)
-        LoadRange(i);
-  }
+  if(m_hashes[i] == 0)
+    LoadRange(i);
     
   size_t idx = cmph_search(m_hashes[i], key, (cmph_uint32) strlen(key));
   
@@ -209,9 +206,6 @@ void BlockHashIndex::LoadIndex(std::FILE* mphf) {
   
   size_t relIndexPos;
   std::fread(&relIndexPos, sizeof(size_t), 1, mphf);
-
-  //std::cerr <<  relIndexPos << std::endl;
-
   std::fseek(m_fileHandle, m_fileHandleStart + relIndexPos, SEEK_SET);
 
   m_landmarks.load(mphf);
@@ -276,18 +270,15 @@ void BlockHashIndex::KeepNLastRanges(float ratio, float tolerance) {
 #endif
   
   size_t n = m_hashes.size() * ratio;
-  
-  std::cerr << "Hashes Loaded: " << m_numLoadedRanges << "/" << m_hashes.size() << std::endl;
-  if(m_numLoadedRanges > size_t(n * (1+tolerance))) {
+  if(m_numLoadedRanges > size_t(n * (1 + tolerance))) {
     typedef std::vector<std::pair<clock_t, size_t> > LastLoaded;
     LastLoaded lastLoaded;
-    for(size_t i = 0; i < m_hashes.size(); i++) {
+    for(size_t i = 0; i < m_hashes.size(); i++)
       if(m_hashes[i] != 0)
         lastLoaded.push_back(std::make_pair(m_clocks[i], i));
-    }
       
     std::sort(lastLoaded.begin(), lastLoaded.end());
-    for(LastLoaded::reverse_iterator it = lastLoaded.rbegin() + size_t(n * (1-tolerance));
+    for(LastLoaded::reverse_iterator it = lastLoaded.rbegin() + size_t(n * (1 - tolerance));
         it != lastLoaded.rend(); it++)
       DropRange(it->second);
   }

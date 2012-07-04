@@ -266,7 +266,8 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             TargetPhraseVectorPtr subTpv = tpv;
             if(srcEnd - srcStart + 1 != srcSize) {
               Phrase subPhrase = sourcePhrase.GetSubString(WordsRange(srcStart, srcEnd));
-              subTpv = m_phraseDictionary.CreateTargetPhraseCollection(subPhrase);
+              m_phraseDictionary.GetTargetPhraseCollection(subPhrase);
+              subTpv = cache.retrieve(subPhrase);
             }
             
             // false positive consistency check
