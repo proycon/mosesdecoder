@@ -541,7 +541,7 @@ void PhrasetableCreator::encodeTargetPhrasePREnc(std::vector<std::string>& s,
         //std::cout << "\t" << key.str() << " : " << rank << std::endl;     
         
         
-        if(rank >= 0) {
+        if(rank >= 0 && rank < 100) {
             if(p.m != s.size() || rank < ownRank) {   
                 std::stringstream encodedSymbol;
                 encodedSymbols[p.j] = encodePREncSymbol2(p.i-p.j, s.size()-(p.i+p.m), rank);
@@ -557,7 +557,6 @@ void PhrasetableCreator::encodeTargetPhrasePREnc(std::vector<std::string>& s,
                 cp.removeOverlap(p);  
             }
         }
-        
     }
     
     std::stringstream encodedTargetPhrase;

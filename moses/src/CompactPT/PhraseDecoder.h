@@ -55,6 +55,8 @@ class PhraseDecoder {
     bool m_multipleScoreTrees;
     std::vector<CanonicalHuffman<float>*> m_scoreTrees;
     
+    TargetPhraseCollectionCache m_decodingCache;
+    
     PhraseDictionaryMemoryHashed& m_phraseDictionary;   
     
     // ***********************************************
@@ -110,10 +112,11 @@ class PhraseDecoder {
     size_t load(std::FILE* in);
     
     TargetPhraseVectorPtr decodeCollection(std::string encoded,
-                                             const Phrase &sourcePhrase,
-                                             TargetPhraseCollectionCache &cache);
+                                           const Phrase &sourcePhrase);
     
-    void CleanUp(bool = false);
+    void pruneCache() {
+      m_decodingCache.prune();
+    }
     
 };
 

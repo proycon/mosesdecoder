@@ -111,7 +111,7 @@ PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
 
     // Decompress and decode target phrase collection
     TargetPhraseVectorPtr decodedPhraseColl =
-      m_phraseDecoder->decodeCollection(encodedPhraseCollection, sourcePhrase, m_decodingCache);
+      m_phraseDecoder->decodeCollection(encodedPhraseCollection, sourcePhrase);
     
     return decodedPhraseColl;
   }
@@ -207,7 +207,7 @@ PhraseDictionaryMemoryHashed::AddEquivPhrase(const Phrase &source,
 
 void PhraseDictionaryMemoryHashed::CleanUp() {
   m_hash.KeepNLastRanges(0.01, 0.2);
-  m_decodingCache.prune();
+  m_phraseDecoder->pruneCache();
   
 #ifdef WITH_THREADS
   boost::mutex::scoped_lock lock(m_sentenceMutex);

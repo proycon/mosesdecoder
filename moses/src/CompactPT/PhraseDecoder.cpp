@@ -151,8 +151,7 @@ size_t PhraseDecoder::load(std::FILE* in) {
 }
     
 TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
-  std::string encoded, const Phrase &sourcePhrase,
-  TargetPhraseCollectionCache &cache) {
+  std::string encoded, const Phrase &sourcePhrase) {
 
   typedef std::pair<size_t, size_t> AlignPoint2;
 
@@ -267,7 +266,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             if(srcEnd - srcStart + 1 != srcSize) {
               Phrase subPhrase = sourcePhrase.GetSubString(WordsRange(srcStart, srcEnd));
               m_phraseDictionary.GetTargetPhraseCollection(subPhrase);
-              subTpv = cache.retrieve(subPhrase);
+              subTpv = m_decodingCache.retrieve(subPhrase);
             }
             
             // false positive consistency check
@@ -331,7 +330,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   }
   
   if(m_coding == PREnc)
-    cache.cache(sourcePhrase, tpv);
+    m_decodingCache.cache(sourcePhrase, tpv);
   
   return tpv;
 }

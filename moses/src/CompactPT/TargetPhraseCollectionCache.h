@@ -79,8 +79,18 @@ class TargetPhraseCollectionCache {
       if(it != m_phraseCache.end()) {
         it->second.first = clock();
       }
-      else
-        m_phraseCache[sourcePhrase] = std::make_pair(clock(), tpc);
+      else {
+        size_t max = 100;
+        if(max) {
+          TargetPhraseVectorPtr tpc_temp(new TargetPhraseVector());
+          for(TargetPhraseVector::iterator it = tpc->begin();
+              it != tpc->end() && std::distance(tpc->begin(), it) < max; it++)
+            tpc_temp->push_back(*it);
+          m_phraseCache[sourcePhrase] = std::make_pair(clock(), tpc_temp);
+        }
+        else 
+          m_phraseCache[sourcePhrase] = std::make_pair(clock(), tpc);
+      }
     }
 
     TargetPhraseVectorPtr retrieve(const Phrase &sourcePhrase) {

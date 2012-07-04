@@ -54,7 +54,6 @@ protected:
 #endif
   
   SentenceCache m_sentenceCache;
-  TargetPhraseCollectionCache m_decodingCache;
   
   friend class PhraseDecoder;
 
