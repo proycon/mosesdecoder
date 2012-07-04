@@ -57,7 +57,6 @@ bool PhraseDictionaryMemoryHashed::Load(const std::vector<FactorType> &input
   m_languageModels = &languageModels; 
   m_weightWP = weightWP;
 
-  // @TODO: look at this function
   std::string fullFilePath = filePath;
   if (FileExists(filePath + ".mph"))
       fullFilePath += ".mph";
@@ -68,16 +67,20 @@ bool PhraseDictionaryMemoryHashed::Load(const std::vector<FactorType> &input
 
   std::FILE* pFile = std::fopen(fullFilePath.c_str() , "r");
   if(m_implementation == CompactDisk)
+    // Keep source phrase index on disk
     m_hash.LoadIndex(pFile);
   else if(m_implementation == CompactMemory)
+    // Load source phrase index into memory
     m_hash.Load(pFile);
   
   size_t coderSize = m_phraseDecoder->load(pFile);
   
   size_t phraseSize;
   if(m_implementation == CompactDisk)
+    // Keep target phrase collections on disk
     phraseSize = m_targetPhrasesMapped.load(pFile, true);
   else if(m_implementation == CompactMemory)
+    // Load target phrase collections into memory
     phraseSize = m_targetPhrasesMemory.load(pFile, false);
   
   return coderSize && phraseSize;    
