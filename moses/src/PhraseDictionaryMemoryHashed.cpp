@@ -67,10 +67,19 @@ bool PhraseDictionaryMemoryHashed::Load(const std::vector<FactorType> &input
                                   m_languageModels);
 
   std::FILE* pFile = std::fopen(fullFilePath.c_str() , "r");
-  m_hash.LoadIndex(pFile);
+  if(m_implementation == CompactDisk)
+    m_hash.LoadIndex(pFile);
+  else if(m_implementation == CompactMemory)
+    m_hash.Load(pFile);
   
   size_t coderSize = m_phraseDecoder->load(pFile);
-  size_t phraseSize = m_targetPhrasesMapped.load(pFile, true);
+  
+  size_t phraseSize;
+  if(m_implementation == CompactDisk)
+    phraseSize = m_targetPhrasesMapped.load(pFile, true);
+  else if(m_implementation == CompactMemory)
+    phraseSize = m_targetPhrasesMemory.load(pFile, false);
+  
   return coderSize && phraseSize;    
 }
 
@@ -87,8 +96,13 @@ PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
   
   if(sourcePhraseId != m_hash.GetSize()) {    
     // Retrieve compressed and encoded target phrase collection
-    std::string encodedPhraseCollection = m_targetPhrasesMapped[sourcePhraseId];
-
+    
+    std::string encodedPhraseCollection;
+    if(m_implementation == CompactDisk)
+      encodedPhraseCollection = m_targetPhrasesMapped[sourcePhraseId];
+    else if(m_implementation == CompactMemory)
+      encodedPhraseCollection = m_targetPhrasesMemory[sourcePhraseId];
+    
     // Decompress and decode target phrase collection
     TargetPhraseVectorPtr decodedPhraseColl =
       m_phraseDecoder->decodeCollection(encodedPhraseCollection, sourcePhrase);
@@ -184,7 +198,9 @@ PhraseDictionaryMemoryHashed::AddEquivPhrase(const Phrase &source,
                                              const TargetPhrase &targetPhrase) { }
 
 void PhraseDictionaryMemoryHashed::CleanUp() {
-  m_hash.KeepNLastRanges(0.01, 0.2);
+  if(m_implementation == CompactDisk)
+    m_hash.KeepNLastRanges(0.01, 0.2);
+    
   m_phraseDecoder->pruneCache();
   
 #ifdef WITH_THREADS
