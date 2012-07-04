@@ -40,6 +40,7 @@ class PhraseDecoder {
     
     size_t m_numScoreComponent;
     bool m_containsAlignmentInfo;
+    size_t m_maxRank;
     size_t m_maxPhraseLength;
     
     boost::unordered_map<std::string, unsigned> m_sourceSymbolsMap;

@@ -171,6 +171,8 @@ class PhrasetableCreator {
     bool m_useAlignmentInfo;
     bool m_multipleScoreTrees;
     size_t m_quantize;
+    size_t m_maxRank;
+        
     size_t m_maxPhraseLength;
     
     static std::string m_phraseStopSymbol;
@@ -313,7 +315,8 @@ class PhrasetableCreator {
                        size_t fingerPrintBits = 16,
                        bool useAlignmentInfo = false,
                        bool multipleScoreTrees = true,
-                       size_t quantize = 0
+                       size_t quantize = 0,
+                       size_t maxRank = 100
 #ifdef WITH_THREADS
                        , size_t threads = 2
 #endif

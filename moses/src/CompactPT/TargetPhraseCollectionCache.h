@@ -18,6 +18,7 @@
 
 namespace Moses {
 
+// Avoid using new due to locking
 typedef std::vector<TargetPhrase> TargetPhraseVector;
 typedef boost::shared_ptr<TargetPhraseVector> TargetPhraseVectorPtr;
 
@@ -70,7 +71,7 @@ class TargetPhraseCollectionCache {
       return m_phraseCache.end();
     }
     
-    void cache(const Phrase &sourcePhrase, TargetPhraseVectorPtr tpc) {
+    void cache(const Phrase &sourcePhrase, TargetPhraseVectorPtr tpc, size_t max = 0) {
 #ifdef WITH_THREADS
       boost::mutex::scoped_lock lock(m_mutex);
 #endif
@@ -80,8 +81,7 @@ class TargetPhraseCollectionCache {
         it->second.first = clock();
       }
       else {
-        size_t max = 100;
-        if(max) {
+        if(max && tpc->size() > max) {
           TargetPhraseVectorPtr tpc_temp(new TargetPhraseVector());
           for(TargetPhraseVector::iterator it = tpc->begin();
               it != tpc->end() && std::distance(tpc->begin(), it) < max; it++)

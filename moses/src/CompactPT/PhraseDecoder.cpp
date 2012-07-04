@@ -15,7 +15,8 @@ PhraseDecoder::PhraseDecoder(
   const LMList* languageModels
 )
   : m_coding(None), m_numScoreComponent(numScoreComponent),
-  m_containsAlignmentInfo(true), m_symbolTree(0), m_multipleScoreTrees(false),
+  m_containsAlignmentInfo(true), m_maxRank(0),
+  m_symbolTree(0), m_multipleScoreTrees(false),
   m_scoreTrees(1), m_alignTree(0),
   m_phraseDictionary(phraseDictionary), m_input(input), m_output(output),
   m_feature(feature), m_weight(weight),
@@ -113,6 +114,7 @@ size_t PhraseDecoder::load(std::FILE* in) {
   std::fread(&m_coding, sizeof(m_coding), 1, in);
   std::fread(&m_numScoreComponent, sizeof(m_numScoreComponent), 1, in);
   std::fread(&m_containsAlignmentInfo, sizeof(m_containsAlignmentInfo), 1, in);
+  std::fread(&m_maxRank, sizeof(m_maxRank), 1, in);
   std::fread(&m_maxPhraseLength, sizeof(m_maxPhraseLength), 1, in);
   
   if(m_coding == REnc) {
@@ -258,9 +260,10 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             int srcEnd   = srcSize - right - 1;
             
             // false positive consistency check
-            if(0 > srcStart || srcStart > srcEnd || srcEnd >= srcSize) {
-              return TargetPhraseVectorPtr();  
-            }
+            if(0 > srcStart || srcStart > srcEnd || srcEnd >= srcSize)
+              return TargetPhraseVectorPtr();
+            if(m_maxRank && rank > m_maxRank)
+              return TargetPhraseVectorPtr();
             
             TargetPhraseVectorPtr subTpv = tpv;
             if(srcEnd - srcStart + 1 != srcSize) {
@@ -330,7 +333,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   }
   
   if(m_coding == PREnc)
-    m_decodingCache.cache(sourcePhrase, tpv);
+    m_decodingCache.cache(sourcePhrase, tpv, m_maxRank);
   
   return tpv;
 }

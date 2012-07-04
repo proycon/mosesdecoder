@@ -11,6 +11,7 @@ void printHelp(char **argv) {
             "\t-in  string       -- input table file name\n"
             "\t-out string       -- prefix of binary table file\n"
             "\t-encoding string  -- Encoding type (PREnc REnc None)\n"
+            "\t-maxrank int      -- Maximum rank for PREnc\n"
             "\t-nscores int      -- number of score components in phrase table\n"
             "\t-alignment-info   -- include alignment info in the binary phrase table\n"
             "\nadvanced:\n"
@@ -39,6 +40,7 @@ int main(int argc, char **argv) {
   bool useAlignmentInfo = false;
   bool multipleScoreTrees = true;
   size_t quantize = 0;
+  size_t maxRank = 0;
   size_t threads = 1;
   
   if(1 >= argc) {
@@ -67,6 +69,10 @@ int main(int argc, char **argv) {
       else if(val == "PREnc" || val == "prenc") {
         coding = PhrasetableCreator::PREnc;
       }
+    }
+    else if("-maxrank" == arg && i+1 < argc) {
+      ++i;
+      maxRank = atoi(argv[i]);
     }
     else if("-nscores" == arg && i+1 < argc) {
       ++i;
@@ -109,7 +115,7 @@ int main(int argc, char **argv) {
   PhrasetableCreator(inFilePath, outFilePath, numScoreComponent,
                      coding, orderBits, fingerprintBits,
                      useAlignmentInfo, multipleScoreTrees,
-                     quantize
+                     quantize, maxRank
 #ifdef WITH_THREADS
                      , threads
 #endif                     

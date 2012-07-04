@@ -15,7 +15,8 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath,
                                        size_t fingerPrintBits,
                                        bool useAlignmentInfo,
                                        bool multipleScoreTrees,
-                                       size_t quantize
+                                       size_t quantize,
+                                       size_t maxRank
 #ifdef WITH_THREADS
                                        , size_t threads
 #endif
@@ -25,7 +26,7 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath,
     m_coding(coding), m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits),
     m_useAlignmentInfo(useAlignmentInfo),
     m_multipleScoreTrees(multipleScoreTrees),
-    m_quantize(quantize),
+    m_quantize(quantize), m_maxRank(maxRank),
 #ifdef WITH_THREADS
     m_threads(threads),
     m_srcHash(m_orderBits, m_fingerPrintBits, 1),
@@ -115,6 +116,7 @@ void PhrasetableCreator::save() {
     std::fwrite(&m_coding, sizeof(m_coding), 1, m_outFile);
     std::fwrite(&m_numScoreComponent, sizeof(m_numScoreComponent), 1, m_outFile);
     std::fwrite(&m_useAlignmentInfo, sizeof(m_useAlignmentInfo), 1, m_outFile);
+    std::fwrite(&m_maxRank, sizeof(m_maxRank), 1, m_outFile);
     std::fwrite(&m_maxPhraseLength, sizeof(m_maxPhraseLength), 1, m_outFile);
     
     if(m_coding == REnc) {
@@ -541,7 +543,7 @@ void PhrasetableCreator::encodeTargetPhrasePREnc(std::vector<std::string>& s,
         //std::cout << "\t" << key.str() << " : " << rank << std::endl;     
         
         
-        if(rank >= 0 && rank < 100) {
+        if(rank >= 0 && (m_maxRank == 0 || rank < m_maxRank)) {
             if(p.m != s.size() || rank < ownRank) {   
                 std::stringstream encodedSymbol;
                 encodedSymbols[p.j] = encodePREncSymbol2(p.i-p.j, s.size()-(p.i+p.m), rank);
