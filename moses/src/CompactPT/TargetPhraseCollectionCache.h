@@ -27,7 +27,18 @@ class TargetPhraseCollectionCache {
     size_t m_max;
     float m_tolerance;
     
-    typedef std::pair<clock_t, TargetPhraseVectorPtr> LastUsed;
+    struct LastUsed {
+      clock_t m_clock;
+      TargetPhraseVectorPtr m_tpv;
+      size_t m_bitsLeft;
+      
+      LastUsed()
+      : m_clock(0), m_bitsLeft(0) {}
+      
+      LastUsed(clock_t clock, TargetPhraseVectorPtr tpv, size_t bitsLeft = 0)
+      : m_clock(clock), m_tpv(tpv), m_bitsLeft(bitsLeft) {}
+    };
+    
     typedef std::map<Phrase, LastUsed> CacheMap;
     
     CacheMap m_phraseCache;
@@ -61,29 +72,19 @@ class TargetPhraseCollectionCache {
       return m_phraseCache.end();
     }
     
-    void cache(const Phrase &sourcePhrase, TargetPhraseVectorPtr tpc, size_t max = 0) {
+    void cache(const Phrase &sourcePhrase, TargetPhraseVectorPtr tpv, size_t bitsLeft = 0) {
 #ifdef WITH_THREADS
       boost::mutex::scoped_lock lock(m_mutex);
 #endif
 
       iterator it = m_phraseCache.find(sourcePhrase);
-      if(it != m_phraseCache.end()) {
-        it->second.first = clock();
-      }
-      else {
-        if(max && tpc->size() > max) {
-          TargetPhraseVectorPtr tpc_temp(new TargetPhraseVector());
-          for(TargetPhraseVector::iterator it = tpc->begin();
-              it != tpc->end() && std::distance(tpc->begin(), it) < max; it++)
-            tpc_temp->push_back(*it);
-          m_phraseCache[sourcePhrase] = std::make_pair(clock(), tpc_temp);
-        }
-        else 
-          m_phraseCache[sourcePhrase] = std::make_pair(clock(), tpc);
-      }
+      if(it != m_phraseCache.end())
+        it->second.m_clock = clock();
+      else
+        m_phraseCache[sourcePhrase] = LastUsed(clock(), tpv, bitsLeft);
     }
 
-    TargetPhraseVectorPtr retrieve(const Phrase &sourcePhrase) {
+    std::pair<TargetPhraseVectorPtr, size_t> retrieve(const Phrase &sourcePhrase) {
 #ifdef WITH_THREADS
       boost::mutex::scoped_lock lock(m_mutex);
 #endif
@@ -91,11 +92,11 @@ class TargetPhraseCollectionCache {
       iterator it = m_phraseCache.find(sourcePhrase);
       if(it != m_phraseCache.end()) {
         LastUsed &lu = it->second;
-        lu.first = clock();
-        return lu.second;
+        lu.m_clock = clock();
+        return std::make_pair(lu.m_tpv, lu.m_bitsLeft);
       }
       else
-        return TargetPhraseVectorPtr();
+        return std::make_pair(TargetPhraseVectorPtr(), 0);
     }
 
     void prune() {
@@ -109,7 +110,7 @@ class TargetPhraseCollectionCache {
         for(CacheMap::iterator it = m_phraseCache.begin();
             it != m_phraseCache.end(); it++) {
           LastUsed &lu = it->second;
-          cands.insert(std::make_pair(lu.first, it->first));
+          cands.insert(std::make_pair(lu.m_clock, it->first));
         }
          
         for(Cands::iterator it = cands.begin(); it != cands.end(); it++) {

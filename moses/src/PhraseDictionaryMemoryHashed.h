@@ -72,9 +72,6 @@ protected:
   const std::vector<float>* m_weight;
   const LMList* m_languageModels;
   float m_weightWP;
-     
-  std::string makeSourceKey(std::string &);
-  TargetPhraseVectorPtr CreateTargetPhraseCollection(const Phrase &source);
 
 public:
   PhraseDictionaryMemoryHashed(size_t numScoreComponent,

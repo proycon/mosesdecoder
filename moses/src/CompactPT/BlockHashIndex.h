@@ -111,7 +111,7 @@ class BlockHashIndex {
     void DropRange(size_t i);
     void DropLastRange();
     
-    void LoadIndex(std::FILE* mphf);
+    size_t LoadIndex(std::FILE* mphf);
     void LoadRange(size_t i);
     
     size_t Save(std::string filename);

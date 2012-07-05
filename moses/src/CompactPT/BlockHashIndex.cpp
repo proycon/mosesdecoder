@@ -196,8 +196,11 @@ size_t BlockHashIndex::Save(std::FILE * mphf) {
   return FinalizeSave();
 }
 
-void BlockHashIndex::LoadIndex(std::FILE* mphf) {
+size_t BlockHashIndex::LoadIndex(std::FILE* mphf) {
   m_fileHandle = mphf;
+  
+  size_t beginning = std::ftell(mphf);
+
   std::fread(&m_orderBits, sizeof(size_t), 1, mphf);
   std::fread(&m_fingerPrintBits, sizeof(size_t), 1, mphf);
   m_fileHandleStart = std::ftell(m_fileHandle);
@@ -219,6 +222,10 @@ void BlockHashIndex::LoadIndex(std::FILE* mphf) {
   m_arrays.resize(seekIndexSize, 0);
   
   std::fread(&m_size, sizeof(size_t), 1, m_fileHandle);
+
+  size_t end = std::ftell(mphf);
+
+  return end - beginning;  
 }
 
 void BlockHashIndex::LoadRange(size_t i) {
@@ -245,18 +252,12 @@ size_t BlockHashIndex::Load(std::string filename) {
 }
 
 size_t BlockHashIndex::Load(std::FILE * mphf) {
-  size_t beginning = std::ftell(mphf);
-
-  LoadIndex(mphf);
-  
+  size_t byteSize = LoadIndex(mphf);
   size_t end = std::ftell(mphf);
   
   for(size_t i = 0; i < m_seekIndex.size(); i++)
       LoadRange(i);
-  
   std::fseek(m_fileHandle, end, SEEK_SET);
-
-  size_t byteSize = end - beginning;
   return byteSize;
 }
 

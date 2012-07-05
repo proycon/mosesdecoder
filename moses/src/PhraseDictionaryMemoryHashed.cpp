@@ -66,12 +66,14 @@ bool PhraseDictionaryMemoryHashed::Load(const std::vector<FactorType> &input
                                   m_languageModels);
 
   std::FILE* pFile = std::fopen(fullFilePath.c_str() , "r");
+  
+  size_t indexSize;
   if(m_implementation == CompactDisk)
     // Keep source phrase index on disk
-    m_hash.LoadIndex(pFile);
+    indexSize = m_hash.LoadIndex(pFile);
   else if(m_implementation == CompactMemory)
     // Load source phrase index into memory
-    m_hash.Load(pFile);
+    indexSize = m_hash.Load(pFile);
   
   size_t coderSize = m_phraseDecoder->load(pFile);
   
@@ -83,43 +85,7 @@ bool PhraseDictionaryMemoryHashed::Load(const std::vector<FactorType> &input
     // Load target phrase collections into memory
     phraseSize = m_targetPhrasesMemory.load(pFile, false);
   
-  return coderSize && phraseSize;    
-}
-
-std::string PhraseDictionaryMemoryHashed::makeSourceKey(std::string &source) {
-    return source + m_phraseDecoder->getSeparator();
-}
-
-TargetPhraseVectorPtr
-PhraseDictionaryMemoryHashed::CreateTargetPhraseCollection(const Phrase
-                                                           &sourcePhrase) {
-                                  
-  TargetPhraseVectorPtr cachedPhraseColl
-    = m_phraseDecoder->m_decodingCache.retrieve(sourcePhrase);
-  if(cachedPhraseColl != NULL)
-    return cachedPhraseColl;
-                                  
-  // Retrieve source phrase identifier
-  std::string sourcePhraseString = sourcePhrase.GetStringRep(*m_input);
-  size_t sourcePhraseId = m_hash[makeSourceKey(sourcePhraseString)];
-  
-  if(sourcePhraseId != m_hash.GetSize()) {    
-    // Retrieve compressed and encoded target phrase collection
-    
-    std::string encodedPhraseCollection;
-    if(m_implementation == CompactDisk)
-      encodedPhraseCollection = m_targetPhrasesMapped[sourcePhraseId];
-    else if(m_implementation == CompactMemory)
-      encodedPhraseCollection = m_targetPhrasesMemory[sourcePhraseId];
-    
-    // Decompress and decode target phrase collection
-    TargetPhraseVectorPtr decodedPhraseColl =
-      m_phraseDecoder->decodeCollection(encodedPhraseCollection, sourcePhrase);
-    
-    return decodedPhraseColl;
-  }
-  else
-    return TargetPhraseVectorPtr();
+  return indexSize && coderSize && phraseSize;    
 }
 
 struct CompareTargetPhrase {
@@ -135,16 +101,10 @@ PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhra
   // observed source phrase during compilation 
   if(sourcePhrase.GetSize() > m_phraseDecoder->getMaxSourcePhraseLength())
     return NULL;
-  
-  // Only for PREnc: Check whether phrase pair has been created previously
-  //TargetPhraseCollection* cachedPhraseColl
-  //  = const_cast<PhraseDictionaryMemoryHashed*>(this)->RetrieveFromCache(sourcePhrase);
-  //if(cachedPhraseColl != NULL)
-  //  return cachedPhraseColl;
 
   // Retrieve target phrase collection from phrase table
   TargetPhraseVectorPtr decodedPhraseColl
-    = const_cast<PhraseDictionaryMemoryHashed*>(this)->CreateTargetPhraseCollection(sourcePhrase);
+    = m_phraseDecoder->createTargetPhraseCollection(sourcePhrase, true);
   
   if(decodedPhraseColl != NULL && decodedPhraseColl->size()) {
     TargetPhraseVectorPtr tpv(new TargetPhraseVector(*decodedPhraseColl));

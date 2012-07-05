@@ -36,10 +36,6 @@ PhraseDecoder::~PhraseDecoder() {
     delete m_alignTree;
 }
 
-std::string& PhraseDecoder::getSeparator() {
-  return m_separator;
-}
-
 inline unsigned PhraseDecoder::getSourceSymbolId(std::string& symbol) {
   boost::unordered_map<std::string, unsigned>::iterator it
     = m_sourceSymbolsMap.find(symbol);
@@ -151,12 +147,69 @@ size_t PhraseDecoder::load(std::FILE* in) {
   size_t end = std::ftell(in);
   return end - start;
 }
+  
+std::string PhraseDecoder::makeSourceKey(std::string &source) {
+    return source + m_separator;
+}
+  
+TargetPhraseVectorPtr PhraseDecoder::createTargetPhraseCollection(const Phrase &sourcePhrase, bool topLevel) {
     
+  // Not using TargetPhraseCollection avoiding "new" operator
+  // which can introduce heavy locking with multiple threads
+  TargetPhraseVectorPtr tpv(new TargetPhraseVector());
+  size_t bitsLeft = 0;
+                                
+  if(m_coding == PREnc) {
+    std::pair<TargetPhraseVectorPtr, size_t> cachedPhraseColl
+      = m_decodingCache.retrieve(sourcePhrase);
+    
+    // Has been cached and is complete or does not need to be completed
+    if(cachedPhraseColl.first != NULL && (!topLevel || cachedPhraseColl.second == 0))
+      return cachedPhraseColl.first;
+  
+    // Has been cached, but is incomplete
+    //else if(cachedPhraseColl.first != NULL) {
+    //  bitsLeft = cachedPhraseColl.second;
+    //  std::copy(cachedPhraseColl.first->begin(),
+    //            cachedPhraseColl.first->end(),
+    //            tpv->begin());
+    //}
+  }
+  
+  // Retrieve source phrase identifier
+  std::string sourcePhraseString = sourcePhrase.GetStringRep(*m_input);
+  size_t sourcePhraseId = m_phraseDictionary.m_hash[makeSourceKey(sourcePhraseString)];
+  
+  if(sourcePhraseId != m_phraseDictionary.m_hash.GetSize()) {    
+    // Retrieve compressed and encoded target phrase collection  
+    std::string encodedPhraseCollection;
+    if(m_phraseDictionary.m_implementation == CompactDisk)
+      encodedPhraseCollection = m_phraseDictionary.m_targetPhrasesMapped[sourcePhraseId];
+    else if(m_phraseDictionary.m_implementation == CompactMemory)
+      encodedPhraseCollection = m_phraseDictionary.m_targetPhrasesMemory[sourcePhraseId];
+    
+    BitStream<> encodedBitStream(encodedPhraseCollection);
+    //if(m_coding == PREnc && bitsLeft)
+    //  encodedBitStream.setLeft(bitsLeft);
+    
+    // Decompress and decode target phrase collection
+    TargetPhraseVectorPtr decodedPhraseColl =
+      decodeCollection(tpv, encodedBitStream, sourcePhrase, topLevel);
+    
+    return decodedPhraseColl;
+  }
+  else
+    return TargetPhraseVectorPtr(); 
+}
+  
 TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
-  std::string encoded, const Phrase &sourcePhrase) {
+  TargetPhraseVectorPtr tpv, BitStream<> &encodedBitStream,
+  const Phrase &sourcePhrase, bool topLevel) {
 
+  bool extending = tpv->size();
+  
   typedef std::pair<size_t, size_t> AlignPointSizeT;
-
+  
   std::vector<int> sourceWords;
   if(m_coding == REnc) {
     for(size_t i = 0; i < sourcePhrase.GetSize(); i++) {
@@ -167,9 +220,6 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
     }
   }
   
-  // Not using TargetPhraseCollection avoiding "new" operator 
-  TargetPhraseVectorPtr tpv(new TargetPhraseVector());
-
   unsigned phraseStopSymbol = 0;
   AlignPoint alignStopSymbol(-1, -1);
   
@@ -182,13 +232,10 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   size_t srcSize = sourcePhrase.GetSize();
   
   TargetPhrase* targetPhrase;
-  
-  BitStream<> encodedBitStream(encoded);
-  
   while(encodedBitStream.remainingBits()) {
      
     if(state == New) {
-      // Creating new TargetPhrase on the heap, much faster than using "new"
+      // Creating new TargetPhrase on the heap
       tpv->push_back(TargetPhrase(Output));
       targetPhrase = &tpv->back();
       
@@ -275,7 +322,7 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             
             if(srcEnd - srcStart + 1 != srcSize) {
               Phrase subPhrase = sourcePhrase.GetSubString(WordsRange(srcStart, srcEnd));
-              subTpv = m_phraseDictionary.CreateTargetPhraseCollection(subPhrase);
+              subTpv = createTargetPhraseCollection(subPhrase, false);
             }
             
             // false positive consistency check
@@ -331,18 +378,20 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
       if(StaticData::Instance().UseAlignmentInfo())
         targetPhrase->SetAlignmentInfo(alignment);
       
-      // skip over filling bits.
       if(encodedBitStream.remainingBits() <= 8)
+        break;
+      
+      if(m_coding == PREnc && !topLevel && tpv->size() >= m_maxRank)
         break;
       
       state = New;
     }    
   }
   
-  if(m_coding == PREnc)
-    // cache the first m_maxRank target phrases for later decoding
-    //m_decodingCache.cache(sourcePhrase, tpv, m_maxRank);
-    m_decodingCache.cache(sourcePhrase, tpv, 0);
+  if(m_coding == PREnc && !extending) {
+    size_t bitsLeft = encodedBitStream.remainingBits();
+    m_decodingCache.cache(sourcePhrase, tpv, bitsLeft > 8 ? bitsLeft : 0);
+  }
   
   return tpv;
 }

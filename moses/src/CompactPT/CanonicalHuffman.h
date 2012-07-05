@@ -241,6 +241,12 @@ class BitStream {
       return m_data.size() * m_valueBits - m_bitPos;
     }
     
+    void setLeft(size_t bitPos) {
+      m_bitPos = m_data.size() * m_valueBits - bitPos;
+      m_iterator = m_data.begin() + int(m_bitPos/m_valueBits);
+      m_currentValue = *m_iterator >> (m_bitPos % m_valueBits);
+    }
+    
     bool getNext() {
       if(m_bitPos % m_valueBits == 0) {
         if(m_iterator != m_data.end()) {

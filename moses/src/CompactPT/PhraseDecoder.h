@@ -74,10 +74,6 @@ class PhraseDecoder {
     std::string m_separator;
   
     // ***********************************************
-  
-  public:
-    
-    std::string& getSeparator();
     
     unsigned getSourceSymbolId(std::string& s);
     std::string getTargetSymbol(unsigned id) const;
@@ -99,6 +95,10 @@ class PhraseDecoder {
     int decodePREncSymbol2Right(unsigned encodedSymbol);
     unsigned decodePREncSymbol2Rank(unsigned encodedSymbol);
     
+    std::string makeSourceKey(std::string &);
+    
+  public:
+    
     PhraseDecoder(
       PhraseDictionaryMemoryHashed &phraseDictionary,
       const std::vector<FactorType>* &input,
@@ -114,8 +114,13 @@ class PhraseDecoder {
      
     size_t load(std::FILE* in);
     
-    TargetPhraseVectorPtr decodeCollection(std::string encoded,
-                                           const Phrase &sourcePhrase);
+    TargetPhraseVectorPtr createTargetPhraseCollection(const Phrase &sourcePhrase,
+                                                       bool topLevel = false);
+    
+    TargetPhraseVectorPtr decodeCollection(TargetPhraseVectorPtr tpv,
+                                           BitStream<> &encodedBitStream,
+                                           const Phrase &sourcePhrase,
+                                           bool topLevel);
     
     void pruneCache() {
       m_decodingCache.prune();
