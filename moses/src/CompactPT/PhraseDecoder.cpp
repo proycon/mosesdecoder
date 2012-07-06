@@ -168,12 +168,13 @@ TargetPhraseVectorPtr PhraseDecoder::createTargetPhraseCollection(const Phrase &
       return cachedPhraseColl.first;
   
     // Has been cached, but is incomplete
-    //else if(cachedPhraseColl.first != NULL) {
-    //  bitsLeft = cachedPhraseColl.second;
-    //  std::copy(cachedPhraseColl.first->begin(),
-    //            cachedPhraseColl.first->end(),
-    //            tpv->begin());
-    //}
+    else if(cachedPhraseColl.first != NULL) {
+      bitsLeft = cachedPhraseColl.second;
+      tpv->resize(cachedPhraseColl.first->size());
+      std::copy(cachedPhraseColl.first->begin(),
+                cachedPhraseColl.first->end(),
+                tpv->begin());
+    }
   }
   
   // Retrieve source phrase identifier
@@ -189,8 +190,8 @@ TargetPhraseVectorPtr PhraseDecoder::createTargetPhraseCollection(const Phrase &
       encodedPhraseCollection = m_phraseDictionary.m_targetPhrasesMemory[sourcePhraseId];
     
     BitStream<> encodedBitStream(encodedPhraseCollection);
-    //if(m_coding == PREnc && bitsLeft)
-    //  encodedBitStream.setLeft(bitsLeft);
+    if(m_coding == PREnc && bitsLeft)
+      encodedBitStream.setLeft(bitsLeft);
     
     // Decompress and decode target phrase collection
     TargetPhraseVectorPtr decodedPhraseColl =
@@ -205,9 +206,10 @@ TargetPhraseVectorPtr PhraseDecoder::createTargetPhraseCollection(const Phrase &
 TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   TargetPhraseVectorPtr tpv, BitStream<> &encodedBitStream,
   const Phrase &sourcePhrase, bool topLevel) {
-
-  bool extending = tpv->size();
   
+  bool extending = tpv->size();
+  size_t bitsLeft = encodedBitStream.remainingBits();
+    
   typedef std::pair<size_t, size_t> AlignPointSizeT;
   
   std::vector<int> sourceWords;
@@ -316,10 +318,12 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             
             // false positive consistency check
             if(m_maxRank && rank > m_maxRank)
-              return TargetPhraseVectorPtr();
+                return TargetPhraseVectorPtr();
             
+            // set subphrase by default to itself
             TargetPhraseVectorPtr subTpv = tpv;
             
+            // if range smaller than source phrase retrieve subphrase
             if(srcEnd - srcStart + 1 != srcSize) {
               Phrase subPhrase = sourcePhrase.GetSubString(WordsRange(srcStart, srcEnd));
               subTpv = createTargetPhraseCollection(subPhrase, false);
@@ -329,16 +333,18 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             if(subTpv != NULL && rank < subTpv->size()) {
               // insert the subphrase into the main target phrase
               TargetPhrase& subTp = subTpv->at(rank);
-              targetPhrase->Append(subTp);
               if(StaticData::Instance().UseAlignmentInfo()) {
-                // @TODO: dodaj srcStart oraz targetPhrase->GetSize
-                //alignment.insert(subTp->GetAlignmentInfo().begin(),
-                //                subTp->GetAlignmentInfo().end());
+                // reconstruct the alignment data based on the alignment of the subphrase
+                for(AlignmentInfo::const_iterator it = subTp.GetAlignmentInfo().begin();
+                    it != subTp.GetAlignmentInfo().end(); it++) {
+                  alignment.insert(AlignPointSizeT(srcStart + it->first,
+                                                   targetPhrase->GetSize() + it->second));
+                }
               }
+              targetPhrase->Append(subTp);
             }
-            else {
+            else 
               return TargetPhraseVectorPtr();
-            }
           }
         }
         else {
@@ -377,11 +383,16 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
     if(state == Add) {
       if(StaticData::Instance().UseAlignmentInfo())
         targetPhrase->SetAlignmentInfo(alignment);
+  
+      if(m_coding == PREnc) {
+        if(!m_maxRank || tpv->size() <= m_maxRank)
+          bitsLeft = encodedBitStream.remainingBits();
+        
+        if(!topLevel && m_maxRank && tpv->size() >= m_maxRank)
+          break;
+      }
       
       if(encodedBitStream.remainingBits() <= 8)
-        break;
-      
-      if(m_coding == PREnc && !topLevel && tpv->size() >= m_maxRank)
         break;
       
       state = New;
@@ -389,8 +400,8 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   }
   
   if(m_coding == PREnc && !extending) {
-    size_t bitsLeft = encodedBitStream.remainingBits();
-    m_decodingCache.cache(sourcePhrase, tpv, bitsLeft > 8 ? bitsLeft : 0);
+    bitsLeft = bitsLeft > 8 ? bitsLeft : 0;
+    m_decodingCache.cache(sourcePhrase, tpv, bitsLeft, m_maxRank);
   }
   
   return tpv;

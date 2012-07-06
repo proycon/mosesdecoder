@@ -243,8 +243,9 @@ class BitStream {
     
     void setLeft(size_t bitPos) {
       m_bitPos = m_data.size() * m_valueBits - bitPos;
-      m_iterator = m_data.begin() + int(m_bitPos/m_valueBits);
-      m_currentValue = *m_iterator >> (m_bitPos % m_valueBits);
+      m_iterator = m_data.begin() + int((m_bitPos-1)/m_valueBits);
+      m_currentValue = (*m_iterator) >> ((m_bitPos-1) % m_valueBits);
+      m_iterator++;
     }
     
     bool getNext() {
@@ -274,6 +275,27 @@ class BitStream {
         m_bitPos++;
       }
       
+    }
+    
+    std::string status() {
+      std::stringstream ss;
+      
+      /*
+        typename Container::iterator m_iterator;
+        typename Container::value_type m_currentValue;
+    
+        size_t m_bitPos;
+        size_t m_valueBits;
+    
+        typename Container::value_type m_mask;
+      */
+      
+      ss << "m_iterator: " << unsigned((unsigned char)*m_iterator) << std::endl;
+      ss << "m_currentValue: " <<  unsigned((unsigned char)m_currentValue) << std::endl;
+      ss << "m_bitPos: " << m_bitPos << std::endl;
+      ss << "m_valueBits: " << m_valueBits << std::endl;
+      ss << "m_mask: " <<  unsigned((unsigned char)m_mask) << std::endl;
+      return ss.str();
     }
     
     void reset() {

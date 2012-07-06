@@ -52,7 +52,7 @@ class TargetPhraseCollectionCache {
     typedef CacheMap::iterator iterator;
     typedef CacheMap::const_iterator const_iterator;
         
-    TargetPhraseCollectionCache(size_t max = 5000, float tolerance = 0.2)
+    TargetPhraseCollectionCache(size_t max = 1000, float tolerance = 0.2)
     : m_max(max), m_tolerance(tolerance)
     {}
     
@@ -72,7 +72,8 @@ class TargetPhraseCollectionCache {
       return m_phraseCache.end();
     }
     
-    void cache(const Phrase &sourcePhrase, TargetPhraseVectorPtr tpv, size_t bitsLeft = 0) {
+    void cache(const Phrase &sourcePhrase, TargetPhraseVectorPtr tpv,
+               size_t bitsLeft = 0, size_t maxRank = 0) {
 #ifdef WITH_THREADS
       boost::mutex::scoped_lock lock(m_mutex);
 #endif
@@ -80,8 +81,16 @@ class TargetPhraseCollectionCache {
       iterator it = m_phraseCache.find(sourcePhrase);
       if(it != m_phraseCache.end())
         it->second.m_clock = clock();
-      else
-        m_phraseCache[sourcePhrase] = LastUsed(clock(), tpv, bitsLeft);
+      else {
+        if(maxRank && tpv->size() > maxRank) {
+          TargetPhraseVectorPtr tpv_temp(new TargetPhraseVector());
+          tpv_temp->resize(maxRank);
+          std::copy(tpv->begin(), tpv->begin() + maxRank, tpv_temp->begin());
+          m_phraseCache[sourcePhrase] = LastUsed(clock(), tpv_temp, bitsLeft);
+        }
+        else
+          m_phraseCache[sourcePhrase] = LastUsed(clock(), tpv, bitsLeft);
+      }
     }
 
     std::pair<TargetPhraseVectorPtr, size_t> retrieve(const Phrase &sourcePhrase) {
