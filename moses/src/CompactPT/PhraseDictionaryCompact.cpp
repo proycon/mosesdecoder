@@ -133,7 +133,7 @@ PhraseDictionaryCompact::~PhraseDictionaryCompact() {
     delete m_phraseDecoder;
 }
 
-//TO_STRING_BODY(PhraseDictionaryMemoryHashed)
+//TO_STRING_BODY(PhraseDictionaryCompact)
 
 TargetPhraseCollection*
 PhraseDictionaryCompact::RetrieveFromCache(const Phrase &sourcePhrase) {

@@ -6,10 +6,12 @@ libmoses_ladir = ${includedir}
 libmoses_la_HEADERS = \
         CompactPT/CmphStringVectorAdapter.h \
         CompactPT/BlockHashIndex.h \
-	CompactPT/MurmurHash3.h \
+		CompactPT/MurmurHash3.h \
         CompactPT/PhraseDecoder.h \
-	CompactPT/PhrasetableCreator.h \
+		CompactPT/PhraseTableCreator.h \
         CompactPT/PhraseDictionaryCompact.h \
+		CompactPT/LexicalReorderingTableCompact.h \
+        CompactPT/LexicalReorderingTableCreator.h \
         AlignmentInfo.h \
         AlignmentInfoCollection.h \
         BilingualDynSuffixArray.h \
@@ -179,11 +181,13 @@ endif
 
 libmoses_la_SOURCES = \
         CompactPT/CmphStringVectorAdapter.cpp \
-	CompactPT/PhrasetableCreator.cpp \
         CompactPT/BlockHashIndex.cpp \
         CompactPT/MurmurHash3.cpp \
         CompactPT/PhraseDecoder.cpp \
         CompactPT/PhraseDictionaryCompact.cpp \
+		CompactPT/PhraseTableCreator.cpp \
+		CompactPT/LexicalReorderingTableCompact.cpp \
+		CompactPT/LexicalReorderingTableCreator.cpp \
         AlignmentInfo.cpp \
         AlignmentInfoCollection.cpp \
         BilingualDynSuffixArray.cpp \

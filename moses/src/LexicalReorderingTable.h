@@ -20,9 +20,6 @@
 #include "Sentence.h"
 #include "PrefixTreeMap.h"
 
-#include "CompactPT/BlockHashIndex.h"
-#include "CompactPT/CanonicalHuffman.h"
-#include "CompactPT/StringVector.h"
 
 namespace Moses
 {
@@ -94,35 +91,6 @@ private:
 private:
   typedef std::map< std::string, std::vector<float> > TableType;
   TableType m_Table;
-};
-
-class LexicalReorderingTableMemoryHashed : public LexicalReorderingTable
-{
-public:
-  LexicalReorderingTableMemoryHashed( const std::string& filePath,
-                                const std::vector<FactorType>& f_factors,
-                                const std::vector<FactorType>& e_factors,
-                                const std::vector<FactorType>& c_factors);
-  
-  LexicalReorderingTableMemoryHashed(
-                                const std::vector<FactorType>& f_factors,
-                                const std::vector<FactorType>& e_factors,
-                                const std::vector<FactorType>& c_factors);
-  
-  virtual ~LexicalReorderingTableMemoryHashed();
-public:
-  virtual std::vector<float> GetScore(const Phrase& f, const Phrase& e, const Phrase& c);
-  void LoadText(const std::string& filePath);
-  void LoadBinary(const std::string& filePath);
-  void SaveBinary(const std::string& filePath);
-  
-private:
-  std::string MakeKey(const Phrase& f, const Phrase& e, const Phrase& c) const;
-  std::string MakeKey(const std::string& f, const std::string& e, const std::string& c) const;
-    
-  BlockHashIndex m_hash;
-  CanonicalHuffman<float>* m_tree;
-  StringVector<unsigned char, unsigned long, MmapAllocator> m_scores;
 };
 
 class LexicalReorderingTableTree : public LexicalReorderingTable

@@ -3,7 +3,7 @@
 
 #include "Timer.h"
 #include "InputFileStream.h"
-#include "LexicalReorderingTable.h"
+#include "CompactPT/LexicalReorderingTableCreator.h"
 
 using namespace Moses;
 
@@ -20,7 +20,7 @@ void printHelp()
 
 int main(int argc, char** argv)
 {
-  std::cerr << "processLexicalTableHashed by Marcin Junczys-Dowmunt\n";
+  std::cerr << "processLexicalTableCompact by Marcin Junczys-Dowmunt\n";
   std::string inFilePath;
   std::string outFilePath("out");
   if(1 >= argc) {
@@ -47,9 +47,7 @@ int main(int argc, char** argv)
   std::vector<FactorType> e_factors(1, 0);
   std::vector<FactorType> f_factors(1, 0);
   std::vector<FactorType> c_factors;
-  LexicalReorderingTableMemoryHashed lextable(e_factors, f_factors, c_factors);
-  lextable.LoadText(inFilePath);
-  std::cerr << "Saving now to " << outFilePath << ".mphlexr" << std::endl;
-  lextable.SaveBinary(outFilePath + ".mphlexr");
+  
+  LexicalReorderingTableCreator(inFilePath, outFilePath);
   std::cerr << "Done" << std::endl;
 }

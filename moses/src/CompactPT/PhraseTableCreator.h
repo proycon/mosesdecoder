@@ -1,5 +1,5 @@
-#ifndef moses_PhrasetableCreator_h
-#define moses_PhrasetableCreator_h
+#ifndef moses_PhraseTableCreator_h
+#define moses_PhraseTableCreator_h
 
 #include <sstream>
 #include <iostream>
@@ -41,15 +41,15 @@ class Counter
     
     struct FreqSorter
     {
-        bool operator()(const value_type& a, const value_type& b) const
-        {
-            if(a.second > b.second)
-                return true;
-            // Check impact on translation quality!
-            if(a.second == b.second && a.first > b.first)
-                return true;
-            return false;
-        }
+      bool operator()(const value_type& a, const value_type& b) const
+      {
+        if(a.second > b.second)
+          return true;
+        // Check impact on translation quality!
+        if(a.second == b.second && a.first > b.first)
+          return true;
+        return false;
+      }
     };
   
   public:
@@ -57,90 +57,90 @@ class Counter
     
     iterator Begin()
     {
-        return m_freqMap.begin();
+      return m_freqMap.begin();
     }
     
     iterator End()
     {
-        return m_freqMap.end();
+      return m_freqMap.end();
     }
     
     void Increase(DataType data)
     {
 #ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
+      boost::mutex::scoped_lock lock(m_mutex);
 #endif
-        m_freqMap[data]++;
+      m_freqMap[data]++;
     }
   
     void IncreaseBy(DataType data, size_t num)
     {
 #ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
+      boost::mutex::scoped_lock lock(m_mutex);
 #endif
-        m_freqMap[data] += num;
+      m_freqMap[data] += num;
     }
     
-    mapped_type operator[](DataType data)
+    mapped_type& operator[](DataType data)
     {
-        return m_freqMap[data];
+      return m_freqMap[data];
     }
     
     size_t Size()
     {
 #ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
+      boost::mutex::scoped_lock lock(m_mutex);
 #endif
-        return m_freqMap.size();
+      return m_freqMap.size();
     }
     
     void Quantize(size_t maxSize)
     {
 #ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
+      boost::mutex::scoped_lock lock(m_mutex);
 #endif
-        m_maxSize = maxSize;
-        std::vector<std::pair<DataType, mapped_type> > freqVec;
-        freqVec.insert(freqVec.begin(), m_freqMap.begin(), m_freqMap.end());
-        std::sort(freqVec.begin(), freqVec.end(), FreqSorter());
+      m_maxSize = maxSize;
+      std::vector<std::pair<DataType, mapped_type> > freqVec;
+      freqVec.insert(freqVec.begin(), m_freqMap.begin(), m_freqMap.end());
+      std::sort(freqVec.begin(), freqVec.end(), FreqSorter());
+      
+      for(size_t i = 0; i < freqVec.size() && i < m_maxSize; i++)
+        m_bestVec.push_back(freqVec[i].first);
         
-        for(size_t i = 0; i < freqVec.size() && i < m_maxSize; i++)
-            m_bestVec.push_back(freqVec[i].first);
-          
-        std::sort(m_bestVec.begin(), m_bestVec.end());
-        
-        FreqMap t_freqMap;
-        for(typename std::vector<std::pair<DataType, mapped_type> >::iterator it
-            = freqVec.begin(); it != freqVec.end(); it++)
-        {
-            DataType closest = LowerBound(it->first);
-            t_freqMap[closest] += it->second;
-        }
-        
-        m_freqMap.swap(t_freqMap);   
+      std::sort(m_bestVec.begin(), m_bestVec.end());
+      
+      FreqMap t_freqMap;
+      for(typename std::vector<std::pair<DataType, mapped_type> >::iterator it
+          = freqVec.begin(); it != freqVec.end(); it++)
+      {
+        DataType closest = LowerBound(it->first);
+        t_freqMap[closest] += it->second;
+      }
+      
+      m_freqMap.swap(t_freqMap);   
     }
     
     void Clear()
     {
 #ifdef WITH_THREADS
-        boost::mutex::scoped_lock lock(m_mutex);
+      boost::mutex::scoped_lock lock(m_mutex);
 #endif
-        m_freqMap.clear();
+      m_freqMap.clear();
     }
     
     DataType LowerBound(DataType data)
     {
-        if(m_maxSize == 0 || m_bestVec.size() == 0)
-            return data;
+      if(m_maxSize == 0 || m_bestVec.size() == 0)
+        return data;
+      else
+      {
+        typename std::vector<DataType>::iterator it
+          = std::lower_bound(m_bestVec.begin(), m_bestVec.end(), data);
+        if(it != m_bestVec.end())
+          return *it;
         else
-        {
-            typename std::vector<DataType>::iterator it
-              = std::lower_bound(m_bestVec.begin(), m_bestVec.end(), data);
-            if(it != m_bestVec.end())
-                return *it;
-            else
-                return m_bestVec.back();
-        }
+          return m_bestVec.back();
+      }
     }
 };
  
@@ -153,7 +153,7 @@ class PackedItem
     size_t m_rank;
     float m_score;
     
-public:
+  public:
     PackedItem(long line, std::string sourcePhrase,
                std::string packedTargetPhrase, size_t rank,
                float m_score = 0);
@@ -165,9 +165,13 @@ public:
     float GetScore() const;
 };
 
-static bool operator<(const PackedItem &pi1, const PackedItem &pi2);
+static bool operator<(const PackedItem &pi1, const PackedItem &pi2) {
+  if(pi1.GetLine() < pi2.GetLine())
+      return false;
+  return true;
+}
 
-class PhrasetableCreator
+class PhraseTableCreator
 {
   public:
     enum Coding { None, REnc, PREnc };
@@ -205,24 +209,20 @@ class PhrasetableCreator
     typedef std::pair<unsigned, unsigned> SrcTrg;
     typedef std::pair<std::string, std::string> SrcTrgString;
     typedef std::pair<SrcTrgString, float> SrcTrgProb;
-    
         
     struct SrcTrgProbSorter
     {
       bool operator()(const SrcTrgProb& a, const SrcTrgProb& b) const
       {
-        
         if(a.first.first < b.first.first)
           return true;
-        
-        // Check impact on translation quality!
+
         if(a.first.first == b.first.first && a.second > b.second)
           return true;
         
         if(a.first.first == b.first.first
            && a.second == b.second
-           && a.first.second < b.first.second
-        )
+           && a.first.second < b.first.second)
           return true;
         
         return false;
@@ -233,10 +233,10 @@ class PhrasetableCreator
     std::vector<SrcTrg> m_lexicalTable;
     
     StringVector<unsigned char, unsigned long, MmapAllocator>
-        m_encodedTargetPhrases;
+    m_encodedTargetPhrases;
         
     StringVector<unsigned char, unsigned long, MmapAllocator>
-        m_compressedTargetPhrases;
+    m_compressedTargetPhrases;
     
     boost::unordered_map<std::string, unsigned> m_targetSymbolsMap;
     boost::unordered_map<std::string, unsigned> m_sourceSymbolsMap;
@@ -297,6 +297,7 @@ class PhrasetableCreator
                                  std::vector<std::string>& t,
                                  std::set<AlignPoint>& a, size_t ownRank,
                                  std::ostream& os);
+    
     void EncodeScores(std::vector<float>& scores, std::ostream& os);
     void EncodeAlignment(std::set<AlignPoint>& alignment, std::ostream& os);
     
@@ -323,7 +324,7 @@ class PhrasetableCreator
     
   public:
     
-    PhrasetableCreator(std::string inPath,
+    PhraseTableCreator(std::string inPath,
                        std::string outPath,
                        size_t numScoreComponent = 5,
                        Coding coding = PREnc,
@@ -352,10 +353,10 @@ class RankingTask
 #endif
     static size_t m_lineNum;
     InputFileStream& m_inFile;
-    PhrasetableCreator& m_creator;
+    PhraseTableCreator& m_creator;
     
   public:
-    RankingTask(InputFileStream& inFile, PhrasetableCreator& creator);
+    RankingTask(InputFileStream& inFile, PhraseTableCreator& creator);
     void operator()();
 };
 
@@ -371,10 +372,10 @@ class EncodingTask
     static std::string m_lastSourcePhrase;
     
     InputFileStream& m_inFile;
-    PhrasetableCreator& m_creator;
+    PhraseTableCreator& m_creator;
     
   public:
-    EncodingTask(InputFileStream& inFile, PhrasetableCreator& creator);
+    EncodingTask(InputFileStream& inFile, PhraseTableCreator& creator);
     void operator()();
 };
 
@@ -386,15 +387,14 @@ class CompressionTask
 #endif
     static size_t m_collectionNum;
     StringVector<unsigned char, unsigned long, MmapAllocator>&
-        m_encodedCollections;
-    PhrasetableCreator& m_creator;
+    m_encodedCollections;
+    PhraseTableCreator& m_creator;
     
   public:
     CompressionTask(StringVector<unsigned char, unsigned long, MmapAllocator>&
-                    encodedCollections, PhrasetableCreator& creator);
+                    encodedCollections, PhraseTableCreator& creator);
     void operator()();
 };
-
 
 }
 

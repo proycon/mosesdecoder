@@ -1,6 +1,6 @@
 #include <iostream>
 #include "TypeDef.h"
-#include "CompactPT/PhrasetableCreator.h"
+#include "CompactPT/PhraseTableCreator.h"
 #include "CompactPT/CanonicalHuffman.h"
 
 using namespace Moses;
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     
   std::string inFilePath;
   std::string outFilePath("out");
-  PhrasetableCreator::Coding coding = PhrasetableCreator::PREnc;
+  PhraseTableCreator::Coding coding = PhraseTableCreator::PREnc;
   
   size_t numScoreComponent = 5;  
   size_t orderBits = 10;
@@ -61,13 +61,13 @@ int main(int argc, char **argv) {
       ++i;
       std::string val(argv[i]);
       if(val == "None" || val == "none") {
-        coding = PhrasetableCreator::None;
+        coding = PhraseTableCreator::None;
       }
       else if(val == "REnc" || val == "renc") {
-        coding = PhrasetableCreator::REnc;
+        coding = PhraseTableCreator::REnc;
       }
       else if(val == "PREnc" || val == "prenc") {
-        coding = PhrasetableCreator::PREnc;
+        coding = PhraseTableCreator::PREnc;
       }
     }
     else if("-maxrank" == arg && i+1 < argc) {
@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
     }
   }
   
-  PhrasetableCreator(inFilePath, outFilePath, numScoreComponent,
+  PhraseTableCreator(inFilePath, outFilePath, numScoreComponent,
                      coding, orderBits, fingerprintBits,
                      useAlignmentInfo, multipleScoreTrees,
                      quantize, maxRank

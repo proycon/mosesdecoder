@@ -1,14 +1,14 @@
 #include <cstdio>
 
-#include "PhrasetableCreator.h"
+#include "PhraseTableCreator.h"
 
 namespace Moses
 {
     
-std::string PhrasetableCreator::m_phraseStopSymbol = "__SPECIAL_STOP_SYMBOL__";
-std::string PhrasetableCreator::m_separator = " ||| ";
+std::string PhraseTableCreator::m_phraseStopSymbol = "__SPECIAL_STOP_SYMBOL__";
+std::string PhraseTableCreator::m_separator = " ||| ";
     
-PhrasetableCreator::PhrasetableCreator(std::string inPath,
+PhraseTableCreator::PhraseTableCreator(std::string inPath,
                                        std::string outPath,
                                        size_t numScoreComponent,
                                        Coding coding,
@@ -90,7 +90,7 @@ PhrasetableCreator::PhrasetableCreator(std::string inPath,
     std::fclose(m_outFile);
 }
     
-void PhrasetableCreator::PrintInfo()
+void PhraseTableCreator::PrintInfo()
 {
     std::string encodings[3] = {"Huffman", "Huffman + REnc", "Huffman + PREnc"};
     
@@ -123,7 +123,7 @@ void PhrasetableCreator::PrintInfo()
     std::cerr << std::endl;
 }
     
-void PhrasetableCreator::Save()
+void PhraseTableCreator::Save()
 {
     // Save type of encoding
     std::fwrite(&m_coding, sizeof(m_coding), 1, m_outFile);
@@ -186,7 +186,7 @@ void PhrasetableCreator::Save()
     m_compressedTargetPhrases.save(m_outFile);
 }
     
-void PhrasetableCreator::LoadLexicalTable(std::string filePath)
+void PhraseTableCreator::LoadLexicalTable(std::string filePath)
 {
     std::vector<SrcTrgProb> t_lexTable;
       
@@ -253,7 +253,7 @@ void PhrasetableCreator::LoadLexicalTable(std::string filePath)
     std::cerr << std::endl;
 }
 
-void PhrasetableCreator::CreateRankHash()
+void PhraseTableCreator::CreateRankHash()
 {    
     InputFileStream inFile(m_inPath);
 
@@ -273,17 +273,17 @@ void PhrasetableCreator::CreateRankHash()
     FlushRankedQueue(true);
 }
 
-inline std::string PhrasetableCreator::MakeSourceKey(std::string &source)
+inline std::string PhraseTableCreator::MakeSourceKey(std::string &source)
 {
     return source + m_separator;
 }
 
-inline std::string PhrasetableCreator::MakeSourceTargetKey(std::string &source, std::string &target)
+inline std::string PhraseTableCreator::MakeSourceTargetKey(std::string &source, std::string &target)
 {
     return source + m_separator + target + m_separator;
 }
 
-void PhrasetableCreator::EncodeTargetPhrases()
+void PhraseTableCreator::EncodeTargetPhrases()
 {
     InputFileStream inFile(m_inPath);
 
@@ -304,7 +304,7 @@ void PhrasetableCreator::EncodeTargetPhrases()
 }
 
 
-void PhrasetableCreator::CompressTargetPhrases()
+void PhraseTableCreator::CompressTargetPhrases()
 {    
 #ifdef WITH_THREADS
     boost::thread_group threads;
@@ -321,7 +321,7 @@ void PhrasetableCreator::CompressTargetPhrases()
     FlushCompressedQueue(true);
 }
 
-void PhrasetableCreator::CalcHuffmanCodes()
+void PhraseTableCreator::CalcHuffmanCodes()
 {
     std::cerr << "\tCreating Huffman codes for " << m_symbolCounter.Size()
         << " target phrase symbols" << std::endl;
@@ -354,7 +354,7 @@ void PhrasetableCreator::CalcHuffmanCodes()
 }
 
 
-void PhrasetableCreator::AddSourceSymbolId(std::string& symbol)
+void PhraseTableCreator::AddSourceSymbolId(std::string& symbol)
 {
   if(m_sourceSymbolsMap.count(symbol) == 0) {
     unsigned value = m_sourceSymbolsMap.size();
@@ -362,7 +362,7 @@ void PhrasetableCreator::AddSourceSymbolId(std::string& symbol)
   }
 }
 
-void PhrasetableCreator::AddTargetSymbolId(std::string& symbol)
+void PhraseTableCreator::AddTargetSymbolId(std::string& symbol)
 {
   if(m_targetSymbolsMap.count(symbol) == 0) {
     unsigned value = m_targetSymbolsMap.size();
@@ -370,7 +370,7 @@ void PhrasetableCreator::AddTargetSymbolId(std::string& symbol)
   }
 }
 
-unsigned PhrasetableCreator::GetSourceSymbolId(std::string& symbol)
+unsigned PhraseTableCreator::GetSourceSymbolId(std::string& symbol)
 {
     boost::unordered_map<std::string, unsigned>::iterator it
         = m_sourceSymbolsMap.find(symbol);
@@ -381,7 +381,7 @@ unsigned PhrasetableCreator::GetSourceSymbolId(std::string& symbol)
         return m_sourceSymbolsMap.size();
 }
 
-unsigned PhrasetableCreator::GetTargetSymbolId(std::string& symbol)
+unsigned PhraseTableCreator::GetTargetSymbolId(std::string& symbol)
 {
     boost::unordered_map<std::string, unsigned>::iterator it
         = m_targetSymbolsMap.find(symbol);
@@ -392,7 +392,7 @@ unsigned PhrasetableCreator::GetTargetSymbolId(std::string& symbol)
         return m_targetSymbolsMap.size();
 }
 
-unsigned PhrasetableCreator::GetOrAddTargetSymbolId(std::string& symbol)
+unsigned PhraseTableCreator::GetOrAddTargetSymbolId(std::string& symbol)
 {
 #ifdef WITH_THREADS
     boost::mutex::scoped_lock lock(m_mutex);
@@ -410,7 +410,7 @@ unsigned PhrasetableCreator::GetOrAddTargetSymbolId(std::string& symbol)
     }
 }
 
-unsigned PhrasetableCreator::GetRank(unsigned srcIdx, unsigned trgIdx)
+unsigned PhraseTableCreator::GetRank(unsigned srcIdx, unsigned trgIdx)
 {
   size_t srcTrgIdx = m_lexicalTableIndex[srcIdx];
   while(srcTrgIdx < m_lexicalTable.size()
@@ -425,13 +425,13 @@ unsigned PhrasetableCreator::GetRank(unsigned srcIdx, unsigned trgIdx)
     return m_lexicalTable.size();
 }
 
-unsigned PhrasetableCreator::EncodeREncSymbol1(unsigned trgIdx)
+unsigned PhraseTableCreator::EncodeREncSymbol1(unsigned trgIdx)
 {
   assert((~(1 << 31)) > trgIdx);
   return trgIdx;
 }
 
-unsigned PhrasetableCreator::EncodeREncSymbol2(unsigned pos, unsigned rank)
+unsigned PhraseTableCreator::EncodeREncSymbol2(unsigned pos, unsigned rank)
 {
   unsigned symbol = rank;
   symbol |= 1 << 30;
@@ -439,20 +439,20 @@ unsigned PhrasetableCreator::EncodeREncSymbol2(unsigned pos, unsigned rank)
   return symbol;
 }
 
-unsigned PhrasetableCreator::EncodeREncSymbol3(unsigned rank)
+unsigned PhraseTableCreator::EncodeREncSymbol3(unsigned rank)
 {
   unsigned symbol = rank;
   symbol |= 2 << 30;
   return symbol;
 }
 
-unsigned PhrasetableCreator::EncodePREncSymbol1(unsigned trgIdx)
+unsigned PhraseTableCreator::EncodePREncSymbol1(unsigned trgIdx)
 {
   assert((~(1 << 31)) > trgIdx);
   return trgIdx;
 }
 
-unsigned PhrasetableCreator::EncodePREncSymbol2(int left, int right, unsigned rank)
+unsigned PhraseTableCreator::EncodePREncSymbol2(int left, int right, unsigned rank)
 {
   // "left" and "right" must be smaller than 2^5
   // "rank" must be smaller than 2^19  
@@ -471,7 +471,7 @@ unsigned PhrasetableCreator::EncodePREncSymbol2(int left, int right, unsigned ra
   return symbol;
 }
 
-void PhrasetableCreator::EncodeTargetPhraseNone(std::vector<std::string>& t,
+void PhraseTableCreator::EncodeTargetPhraseNone(std::vector<std::string>& t,
                                                 std::ostream& os)
 {
     std::stringstream encodedTargetPhrase;
@@ -490,7 +490,7 @@ void PhrasetableCreator::EncodeTargetPhraseNone(std::vector<std::string>& t,
     m_symbolCounter.Increase(stopSymbolId);
 }
 
-void PhrasetableCreator::EncodeTargetPhraseREnc(std::vector<std::string>& s,
+void PhraseTableCreator::EncodeTargetPhraseREnc(std::vector<std::string>& s,
                                                 std::vector<std::string>& t,
                                                 std::set<AlignPoint>& a,
                                                 std::ostream& os)
@@ -555,7 +555,7 @@ void PhrasetableCreator::EncodeTargetPhraseREnc(std::vector<std::string>& s,
     m_symbolCounter.Increase(encodedSymbol);    
 }
 
-void PhrasetableCreator::EncodeTargetPhrasePREnc(std::vector<std::string>& s,
+void PhraseTableCreator::EncodeTargetPhrasePREnc(std::vector<std::string>& s,
                                                  std::vector<std::string>& t,
                                                  std::set<AlignPoint>& a,
                                                  size_t ownRank,
@@ -632,7 +632,7 @@ void PhrasetableCreator::EncodeTargetPhrasePREnc(std::vector<std::string>& s,
     m_symbolCounter.Increase(encodedSymbol);
 }
 
-void PhrasetableCreator::EncodeScores(std::vector<float>& scores, std::ostream& os)
+void PhraseTableCreator::EncodeScores(std::vector<float>& scores, std::ostream& os)
 {
     size_t c = 0;
     float score;
@@ -647,7 +647,7 @@ void PhrasetableCreator::EncodeScores(std::vector<float>& scores, std::ostream& 
     }
 }
 
-void PhrasetableCreator::EncodeAlignment(std::set<AlignPoint>& alignment,
+void PhraseTableCreator::EncodeAlignment(std::set<AlignPoint>& alignment,
                                          std::ostream& os)
 {
     for(std::set<AlignPoint>::iterator it = alignment.begin();
@@ -661,7 +661,7 @@ void PhrasetableCreator::EncodeAlignment(std::set<AlignPoint>& alignment,
     m_alignCounter.Increase(stop);
 }
 
-std::string PhrasetableCreator::EncodeLine(std::vector<std::string>& tokens, size_t ownRank)
+std::string PhraseTableCreator::EncodeLine(std::vector<std::string>& tokens, size_t ownRank)
 {        
     std::string sourcePhraseStr = tokens[0];
     std::string targetPhraseStr = tokens[1];
@@ -710,7 +710,7 @@ std::string PhrasetableCreator::EncodeLine(std::vector<std::string>& tokens, siz
     return encodedTargetPhrase.str();
 }
 
-std::string PhrasetableCreator::CompressEncodedCollection(std::string encodedCollection)
+std::string PhraseTableCreator::CompressEncodedCollection(std::string encodedCollection)
 {  
     enum EncodeState {
         ReadSymbol, ReadScore, ReadAlignment,
@@ -789,12 +789,12 @@ std::string PhrasetableCreator::CompressEncodedCollection(std::string encodedCol
     return output;
 }
 
-void PhrasetableCreator::AddRankedLine(PackedItem& pi)
+void PhraseTableCreator::AddRankedLine(PackedItem& pi)
 {
     m_queue.push(pi);
 }
 
-void PhrasetableCreator::FlushRankedQueue(bool force)
+void PhraseTableCreator::FlushRankedQueue(bool force)
 {
     size_t step = 1ul << 10;
     
@@ -863,12 +863,12 @@ void PhrasetableCreator::FlushRankedQueue(bool force)
 }
 
 
-void PhrasetableCreator::AddEncodedLine(PackedItem& pi)
+void PhraseTableCreator::AddEncodedLine(PackedItem& pi)
 {
     m_queue.push(pi);
 }
 
-void PhrasetableCreator::FlushEncodedQueue(bool force)
+void PhraseTableCreator::FlushEncodedQueue(bool force)
 {
     while(!m_queue.empty() && m_lastFlushedLine + 1 == m_queue.top().GetLine())
     {
@@ -951,12 +951,12 @@ void PhrasetableCreator::FlushEncodedQueue(bool force)
     }
 }
 
-void PhrasetableCreator::AddCompressedCollection(PackedItem& pi)
+void PhraseTableCreator::AddCompressedCollection(PackedItem& pi)
 {
     m_queue.push(pi); 
 }
 
-void PhrasetableCreator::FlushCompressedQueue(bool force)
+void PhraseTableCreator::FlushCompressedQueue(bool force)
 {
     if(force || m_queue.size() > 10000)
     {
@@ -991,7 +991,7 @@ boost::mutex RankingTask::m_mutex;
 boost::mutex RankingTask::m_fileMutex;
 #endif
 
-RankingTask::RankingTask(InputFileStream& inFile, PhrasetableCreator& creator)
+RankingTask::RankingTask(InputFileStream& inFile, PhraseTableCreator& creator)
   : m_inFile(inFile), m_creator(creator) {}
   
 void RankingTask::operator()()
@@ -1064,7 +1064,7 @@ boost::mutex EncodingTask::m_mutex;
 boost::mutex EncodingTask::m_fileMutex;
 #endif
 
-EncodingTask::EncodingTask(InputFileStream& inFile, PhrasetableCreator& creator)
+EncodingTask::EncodingTask(InputFileStream& inFile, PhraseTableCreator& creator)
   : m_inFile(inFile), m_creator(creator) {}
   
 void EncodingTask::operator()()
@@ -1097,7 +1097,7 @@ void EncodingTask::operator()()
             Moses::TokenizeMultiCharSeparator(tokens, lines[i], m_creator.m_separator);
             
             size_t ownRank = 0;
-            if(m_creator.m_coding == PhrasetableCreator::PREnc)
+            if(m_creator.m_coding == PhraseTableCreator::PREnc)
                 ownRank = m_creator.m_ranks[lineNum + i];
             
             std::string encodedLine = m_creator.EncodeLine(tokens, ownRank);
@@ -1140,7 +1140,7 @@ boost::mutex CompressionTask::m_mutex;
 
 CompressionTask::CompressionTask(StringVector<unsigned char, unsigned long,
                               MmapAllocator>& encodedCollections,
-                              PhrasetableCreator& creator)
+                              PhraseTableCreator& creator)
   : m_encodedCollections(encodedCollections), m_creator(creator) {}
   
 void CompressionTask::operator()()
@@ -1192,12 +1192,5 @@ const std::string& PackedItem::GetTrg() const { return m_packedTargetPhrase; }
 size_t PackedItem::GetRank() const { return m_rank; }
 
 float PackedItem::GetScore() const { return m_score; }
-
-bool operator<(const PackedItem &pi1, const PackedItem &pi2)
-{
-    if(pi1.GetLine() < pi2.GetLine())
-        return false;
-    return true;
-}
 
 }
