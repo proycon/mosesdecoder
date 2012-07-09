@@ -1,5 +1,5 @@
-#ifndef MMAPALLOCATOR_H__
-#define MMAPALLOCATOR_H__
+#ifndef moses_MmapAllocator_h
+#define moses_MmapAllocator_h
 
 #include <limits>
 #include <iostream>
@@ -7,10 +7,11 @@
 #include <cstdio>
 #include <unistd.h>
 
-namespace Moses {
-    
+namespace Moses
+{
     template <class T>
-    class MmapAllocator {
+    class MmapAllocator
+    {
       protected:    
         std::FILE* m_file_ptr;
         size_t m_file_desc;
@@ -18,10 +19,9 @@ namespace Moses {
         size_t m_page_size;
         size_t m_map_size;
         
+        char* m_data_ptr;
         size_t m_data_offset;
         bool m_fixed;
-        
-        char* m_data_ptr;
         
       public:
         typedef T        value_type;
@@ -63,8 +63,10 @@ namespace Moses {
            m_fixed(c.m_fixed)
         { }
         
-        ~MmapAllocator() throw() {
-            if(m_data_ptr) {
+        ~MmapAllocator() throw()
+        {
+            if(m_data_ptr)
+            {
                 munmap(m_data_ptr, m_map_size);
                 if(!m_fixed && std::ftell(m_file_ptr) != -1)
                     std::fclose(m_file_ptr);
@@ -76,28 +78,34 @@ namespace Moses {
             typedef MmapAllocator<U> other;
         };
      
-        pointer address (reference value) const {
+        pointer address (reference value) const
+        {
             return &value;
         }
      
-        const_pointer address (const_reference value) const {
+        const_pointer address (const_reference value) const
+        {
             return &value;
         }
      
-        size_type max_size () const throw() {
+        size_type max_size () const throw()
+        {
             return std::numeric_limits<size_t>::max() / sizeof(value_type);
         }
      
-        pointer allocate (size_type num, const void* = 0) {
+        pointer allocate (size_type num, const void* = 0)
+        {
             m_map_size = num * sizeof(T);
             
-            if(!m_fixed) {
-                int res = ftruncate(m_file_desc, m_map_size);
+            if(!m_fixed)
+            {
+                ftruncate(m_file_desc, m_map_size);
                 m_data_ptr = (char*)mmap(0, m_map_size, PROT_READ|PROT_WRITE, MAP_SHARED,
                                        m_file_desc, 0);
                 return (pointer)m_data_ptr;
             }
-            else {
+            else
+            {
                 size_t map_offset = (m_data_offset / m_page_size) * m_page_size;
                 size_t relative_offset = m_data_offset - map_offset;
                 
@@ -110,23 +118,25 @@ namespace Moses {
             }
         }
      
-        void deallocate (pointer p, size_type num) {
+        void deallocate (pointer p, size_type num)
+        {
             if(!m_fixed)
                 munmap(p, num * sizeof(T));
             else {
                 size_t map_offset = (m_data_offset / m_page_size) * m_page_size;
                 size_t relative_offset = m_data_offset - map_offset;
                 munmap((pointer)((char*)p - relative_offset), num * sizeof(T));    
-                //std::cerr << "Dealloc: " << ((void*)(p - ptr_offset)) << " " << num << std::endl;
             }
             
         }
     
-        void construct (pointer p, const T& value) {
+        void construct (pointer p, const T& value)
+        {
             if(!m_fixed)
                 new(p) value_type(value);
         }
-        void destroy (pointer p) {
+        void destroy (pointer p)
+        {
             if(!m_fixed)
                 p->~T();
         }
@@ -140,8 +150,8 @@ namespace Moses {
     
     template <class T1, class T2>
     bool operator== (const MmapAllocator<T1>& a1,
-                     const MmapAllocator<T2>& a2) throw() {
-        
+                     const MmapAllocator<T2>& a2) throw()
+    {    
         bool equal = true;
         equal &= a1.m_file_ptr == a2.m_file_ptr;
         equal &= a1.m_file_desc == a2.m_file_desc;
@@ -155,7 +165,8 @@ namespace Moses {
     
     template <class T1, class T2>
     bool operator!=(const MmapAllocator<T1>& a1,
-                     const MmapAllocator<T2>& a2) throw() {
+                     const MmapAllocator<T2>& a2) throw()
+    {
         return !(a1 == a2);    
     }
 

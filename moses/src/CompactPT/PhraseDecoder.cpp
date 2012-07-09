@@ -2,7 +2,8 @@
 
 #include "PhraseDecoder.h"
 
-namespace Moses {
+namespace Moses
+{
 
 PhraseDecoder::PhraseDecoder(
   PhraseDictionaryMemoryHashed &phraseDictionary,
@@ -24,7 +25,8 @@ PhraseDecoder::PhraseDecoder(
   m_separator(" ||| ")
 { }
 
-PhraseDecoder::~PhraseDecoder() {
+PhraseDecoder::~PhraseDecoder()
+{
   if(m_symbolTree)
     delete m_symbolTree;
   
@@ -36,7 +38,8 @@ PhraseDecoder::~PhraseDecoder() {
     delete m_alignTree;
 }
 
-inline unsigned PhraseDecoder::getSourceSymbolId(std::string& symbol) {
+inline unsigned PhraseDecoder::GetSourceSymbolId(std::string& symbol)
+{
   boost::unordered_map<std::string, unsigned>::iterator it
     = m_sourceSymbolsMap.find(symbol);
   if(it != m_sourceSymbolsMap.end())
@@ -47,64 +50,78 @@ inline unsigned PhraseDecoder::getSourceSymbolId(std::string& symbol) {
   return idx;
 }
 
-inline std::string PhraseDecoder::getTargetSymbol(unsigned idx) const {
+inline std::string PhraseDecoder::GetTargetSymbol(unsigned idx) const
+{
   if(idx < m_targetSymbols.size())
     return m_targetSymbols[idx];
   return std::string("##ERROR##");
 }
 
-inline size_t PhraseDecoder::getREncType(unsigned encodedSymbol) {
+inline size_t PhraseDecoder::GetREncType(unsigned encodedSymbol)
+{
   return (encodedSymbol >> 30) + 1;
 }
 
-inline size_t PhraseDecoder::getPREncType(unsigned encodedSymbol) {
+inline size_t PhraseDecoder::GetPREncType(unsigned encodedSymbol)
+{
   return (encodedSymbol >> 31) + 1;
 }
 
-inline unsigned PhraseDecoder::getTranslation(unsigned srcIdx, size_t rank) {
+inline unsigned PhraseDecoder::GetTranslation(unsigned srcIdx, size_t rank)
+{
   size_t srcTrgIdx = m_lexicalTableIndex[srcIdx];
   return m_lexicalTable[srcTrgIdx + rank].second;
 }
 
-size_t PhraseDecoder::getMaxSourcePhraseLength() {
+size_t PhraseDecoder::GetMaxSourcePhraseLength()
+{
   return m_maxPhraseLength;
 }
 
-inline unsigned PhraseDecoder::decodeREncSymbol1(unsigned encodedSymbol) {
+inline unsigned PhraseDecoder::DecodeREncSymbol1(unsigned encodedSymbol)
+{
   return encodedSymbol &= ~(3 << 30);
 }
 
-inline unsigned PhraseDecoder::decodeREncSymbol2Rank(unsigned encodedSymbol) {
+inline unsigned PhraseDecoder::DecodeREncSymbol2Rank(unsigned encodedSymbol)
+{
   return encodedSymbol &= ~(255 << 24);
 }
 
-inline unsigned PhraseDecoder::decodeREncSymbol2Position(unsigned encodedSymbol) {
+inline unsigned PhraseDecoder::DecodeREncSymbol2Position(unsigned encodedSymbol)
+{
   encodedSymbol &= ~(3 << 30);
   encodedSymbol >>= 24;
   return encodedSymbol;
 }
 
-inline unsigned PhraseDecoder::decodeREncSymbol3(unsigned encodedSymbol) {
+inline unsigned PhraseDecoder::DecodeREncSymbol3(unsigned encodedSymbol)
+{
   return encodedSymbol &= ~(3 << 30);
 }
 
-inline unsigned PhraseDecoder::decodePREncSymbol1(unsigned encodedSymbol) {
+inline unsigned PhraseDecoder::DecodePREncSymbol1(unsigned encodedSymbol)
+{
   return encodedSymbol &= ~(1 << 31);
 }
 
-inline int PhraseDecoder::decodePREncSymbol2Left(unsigned encodedSymbol) {
+inline int PhraseDecoder::DecodePREncSymbol2Left(unsigned encodedSymbol)
+{
   return ((encodedSymbol >> 25) & 63) - 32;
 }
 
-inline int PhraseDecoder::decodePREncSymbol2Right(unsigned encodedSymbol) {
+inline int PhraseDecoder::DecodePREncSymbol2Right(unsigned encodedSymbol)
+{
   return ((encodedSymbol >> 19) & 63) - 32;
 }
 
-inline unsigned PhraseDecoder::decodePREncSymbol2Rank(unsigned encodedSymbol) {
+inline unsigned PhraseDecoder::DecodePREncSymbol2Rank(unsigned encodedSymbol)
+{
   return (encodedSymbol & 524287);
 }
 
-size_t PhraseDecoder::load(std::FILE* in) {
+size_t PhraseDecoder::Load(std::FILE* in)
+{
   size_t start = std::ftell(in);
   
   std::fread(&m_coding, sizeof(m_coding), 1, in);
@@ -113,7 +130,8 @@ size_t PhraseDecoder::load(std::FILE* in) {
   std::fread(&m_maxRank, sizeof(m_maxRank), 1, in);
   std::fread(&m_maxPhraseLength, sizeof(m_maxPhraseLength), 1, in);
   
-  if(m_coding == REnc) {
+  if(m_coding == REnc)
+  {
     m_sourceSymbols.load(in);
     
     size_t size;
@@ -131,12 +149,14 @@ size_t PhraseDecoder::load(std::FILE* in) {
   m_symbolTree = new CanonicalHuffman<unsigned>(in);
   
   std::fread(&m_multipleScoreTrees, sizeof(m_multipleScoreTrees), 1, in);
-  if(m_multipleScoreTrees) {
+  if(m_multipleScoreTrees)
+  {
     m_scoreTrees.resize(m_numScoreComponent);
     for(size_t i = 0; i < m_numScoreComponent; i++)
       m_scoreTrees[i] = new CanonicalHuffman<float>(in);
   }
-  else {
+  else
+  {
     m_scoreTrees.resize(1);
     m_scoreTrees[0] = new CanonicalHuffman<float>(in);
   }
@@ -148,27 +168,31 @@ size_t PhraseDecoder::load(std::FILE* in) {
   return end - start;
 }
   
-std::string PhraseDecoder::makeSourceKey(std::string &source) {
+std::string PhraseDecoder::MakeSourceKey(std::string &source)
+{
     return source + m_separator;
 }
   
-TargetPhraseVectorPtr PhraseDecoder::createTargetPhraseCollection(const Phrase &sourcePhrase, bool topLevel) {
+TargetPhraseVectorPtr PhraseDecoder::CreateTargetPhraseCollection(const Phrase &sourcePhrase, bool topLevel)
+{
     
   // Not using TargetPhraseCollection avoiding "new" operator
   // which can introduce heavy locking with multiple threads
   TargetPhraseVectorPtr tpv(new TargetPhraseVector());
   size_t bitsLeft = 0;
                                 
-  if(m_coding == PREnc) {
+  if(m_coding == PREnc)
+  {
     std::pair<TargetPhraseVectorPtr, size_t> cachedPhraseColl
-      = m_decodingCache.retrieve(sourcePhrase);
+      = m_decodingCache.Retrieve(sourcePhrase);
     
     // Has been cached and is complete or does not need to be completed
     if(cachedPhraseColl.first != NULL && (!topLevel || cachedPhraseColl.second == 0))
       return cachedPhraseColl.first;
   
     // Has been cached, but is incomplete
-    else if(cachedPhraseColl.first != NULL) {
+    else if(cachedPhraseColl.first != NULL)
+    {
       bitsLeft = cachedPhraseColl.second;
       tpv->resize(cachedPhraseColl.first->size());
       std::copy(cachedPhraseColl.first->begin(),
@@ -179,9 +203,10 @@ TargetPhraseVectorPtr PhraseDecoder::createTargetPhraseCollection(const Phrase &
   
   // Retrieve source phrase identifier
   std::string sourcePhraseString = sourcePhrase.GetStringRep(*m_input);
-  size_t sourcePhraseId = m_phraseDictionary.m_hash[makeSourceKey(sourcePhraseString)];
+  size_t sourcePhraseId = m_phraseDictionary.m_hash[MakeSourceKey(sourcePhraseString)];
   
-  if(sourcePhraseId != m_phraseDictionary.m_hash.GetSize()) {    
+  if(sourcePhraseId != m_phraseDictionary.m_hash.GetSize())
+  {
     // Retrieve compressed and encoded target phrase collection  
     std::string encodedPhraseCollection;
     if(m_phraseDictionary.m_implementation == CompactDisk)
@@ -191,11 +216,11 @@ TargetPhraseVectorPtr PhraseDecoder::createTargetPhraseCollection(const Phrase &
     
     BitStream<> encodedBitStream(encodedPhraseCollection);
     if(m_coding == PREnc && bitsLeft)
-      encodedBitStream.setLeft(bitsLeft);
+      encodedBitStream.SetLeft(bitsLeft);
     
     // Decompress and decode target phrase collection
     TargetPhraseVectorPtr decodedPhraseColl =
-      decodeCollection(tpv, encodedBitStream, sourcePhrase, topLevel);
+      DecodeCollection(tpv, encodedBitStream, sourcePhrase, topLevel);
     
     return decodedPhraseColl;
   }
@@ -203,21 +228,24 @@ TargetPhraseVectorPtr PhraseDecoder::createTargetPhraseCollection(const Phrase &
     return TargetPhraseVectorPtr(); 
 }
   
-TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
+TargetPhraseVectorPtr PhraseDecoder::DecodeCollection(
   TargetPhraseVectorPtr tpv, BitStream<> &encodedBitStream,
-  const Phrase &sourcePhrase, bool topLevel) {
+  const Phrase &sourcePhrase, bool topLevel)
+{
   
   bool extending = tpv->size();
-  size_t bitsLeft = encodedBitStream.remainingBits();
+  size_t bitsLeft = encodedBitStream.RemainingBits();
     
   typedef std::pair<size_t, size_t> AlignPointSizeT;
   
   std::vector<int> sourceWords;
-  if(m_coding == REnc) {
-    for(size_t i = 0; i < sourcePhrase.GetSize(); i++) {
+  if(m_coding == REnc)
+  {
+    for(size_t i = 0; i < sourcePhrase.GetSize(); i++)
+    {
       std::string sourceWord
         = sourcePhrase.GetWord(i).GetString(*m_input, false);
-      unsigned idx = getSourceSymbolId(sourceWord);
+      unsigned idx = GetSourceSymbolId(sourceWord);
       sourceWords.push_back(idx);
     }
   }
@@ -230,13 +258,14 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
   
   enum DecodeState { New, Symbol, Score, Alignment, Add } state = New;
   
-  int node = 0;
   size_t srcSize = sourcePhrase.GetSize();
   
-  TargetPhrase* targetPhrase;
-  while(encodedBitStream.remainingBits()) {
+  TargetPhrase* targetPhrase = NULL;
+  while(encodedBitStream.RemainingBits())
+  {
      
-    if(state == New) {
+    if(state == New)
+    {
       // Creating new TargetPhrase on the heap
       tpv->push_back(TargetPhrase(Output));
       targetPhrase = &tpv->back();
@@ -248,43 +277,52 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
       state = Symbol;
     }
     
-    if(state == Symbol) {
-      unsigned symbol = m_symbolTree->nextSymbol(encodedBitStream);
+    if(state == Symbol)
+    {
+      unsigned symbol = m_symbolTree->NextSymbol(encodedBitStream);
       
-      if(symbol == phraseStopSymbol) {
+      if(symbol == phraseStopSymbol)
+      {
         state = Score;
       }
-      else {
-        if(m_coding == REnc) {
+      else
+      {
+        if(m_coding == REnc)
+        {
           std::string wordString;
-          size_t type = getREncType(symbol);
+          size_t type = GetREncType(symbol);
           
-          if(type == 1) {
-            unsigned decodedSymbol = decodeREncSymbol1(symbol);
-            wordString = getTargetSymbol(decodedSymbol);
+          if(type == 1)
+          {
+            unsigned decodedSymbol = DecodeREncSymbol1(symbol);
+            wordString = GetTargetSymbol(decodedSymbol);
           }
-          else if (type == 2) {
-            size_t rank = decodeREncSymbol2Rank(symbol);
-            size_t srcPos = decodeREncSymbol2Position(symbol);
+          else if (type == 2)
+          {
+            size_t rank = DecodeREncSymbol2Rank(symbol);
+            size_t srcPos = DecodeREncSymbol2Position(symbol);
             
             if(srcPos >= sourceWords.size())
               return TargetPhraseVectorPtr();  
             
-            wordString = getTargetSymbol(getTranslation(sourceWords[srcPos], rank));
-            if(StaticData::Instance().UseAlignmentInfo()) {
+            wordString = GetTargetSymbol(GetTranslation(sourceWords[srcPos], rank));
+            if(StaticData::Instance().UseAlignmentInfo())
+            {
               size_t trgPos = targetPhrase->GetSize();
               alignment.insert(AlignPoint(srcPos, trgPos));
             }
           }
-          else if(type == 3) {
-            size_t rank = decodeREncSymbol3(symbol);
+          else if(type == 3)
+          {
+            size_t rank = DecodeREncSymbol3(symbol);
             size_t srcPos = targetPhrase->GetSize();
             
             if(srcPos >= sourceWords.size())
               return TargetPhraseVectorPtr();  
                             
-            wordString = getTargetSymbol(getTranslation(sourceWords[srcPos], rank));   
-            if(StaticData::Instance().UseAlignmentInfo()) {
+            wordString = GetTargetSymbol(GetTranslation(sourceWords[srcPos], rank));   
+            if(StaticData::Instance().UseAlignmentInfo())
+            {
               size_t trgPos = srcPos;
               alignment.insert(AlignPoint(srcPos, trgPos));
             }
@@ -294,26 +332,29 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
           word.CreateFromString(Output, *m_output, wordString, false);
           targetPhrase->AddWord(word);
         }
-        else if(m_coding == PREnc) {
+        else if(m_coding == PREnc)
+        {
           // if the symbol is just a word
-          if(getPREncType(symbol) == 1) {
-            unsigned decodedSymbol = decodePREncSymbol1(symbol);
+          if(GetPREncType(symbol) == 1)
+          {
+            unsigned decodedSymbol = DecodePREncSymbol1(symbol);
             Word word;
             word.CreateFromString(Output, *m_output,
-                                  getTargetSymbol(decodedSymbol), false);
+                                  GetTargetSymbol(decodedSymbol), false);
             targetPhrase->AddWord(word);
           }
           // if the symbol is a subphrase pointer
-          else {
-            int left = decodePREncSymbol2Left(symbol);
-            int right = decodePREncSymbol2Right(symbol);
-            unsigned rank = decodePREncSymbol2Rank(symbol);
+          else
+          {
+            int left = DecodePREncSymbol2Left(symbol);
+            int right = DecodePREncSymbol2Right(symbol);
+            unsigned rank = DecodePREncSymbol2Rank(symbol);
             
             int srcStart = left + targetPhrase->GetSize();
             int srcEnd   = srcSize - right - 1;
             
             // false positive consistency check
-            if(0 > srcStart || srcStart > srcEnd || srcEnd >= srcSize)
+            if(0 > srcStart || srcStart > srcEnd || unsigned(srcEnd) >= srcSize)
               return TargetPhraseVectorPtr();
             
             // false positive consistency check
@@ -324,19 +365,23 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
             TargetPhraseVectorPtr subTpv = tpv;
             
             // if range smaller than source phrase retrieve subphrase
-            if(srcEnd - srcStart + 1 != srcSize) {
+            if(unsigned(srcEnd - srcStart + 1) != srcSize)
+            {
               Phrase subPhrase = sourcePhrase.GetSubString(WordsRange(srcStart, srcEnd));
-              subTpv = createTargetPhraseCollection(subPhrase, false);
+              subTpv = CreateTargetPhraseCollection(subPhrase, false);
             }
             
             // false positive consistency check
-            if(subTpv != NULL && rank < subTpv->size()) {
+            if(subTpv != NULL && rank < subTpv->size())
+            {
               // insert the subphrase into the main target phrase
               TargetPhrase& subTp = subTpv->at(rank);
-              if(StaticData::Instance().UseAlignmentInfo()) {
+              if(StaticData::Instance().UseAlignmentInfo())
+              {
                 // reconstruct the alignment data based on the alignment of the subphrase
                 for(AlignmentInfo::const_iterator it = subTp.GetAlignmentInfo().begin();
-                    it != subTp.GetAlignmentInfo().end(); it++) {
+                    it != subTp.GetAlignmentInfo().end(); it++)
+                {
                   alignment.insert(AlignPointSizeT(srcStart + it->first,
                                                    targetPhrase->GetSize() + it->second));
                 }
@@ -347,20 +392,23 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
               return TargetPhraseVectorPtr();
           }
         }
-        else {
+        else
+        {
             Word word;
             word.CreateFromString(Output, *m_output,
-                                  getTargetSymbol(symbol), false);
+                                  GetTargetSymbol(symbol), false);
             targetPhrase->AddWord(word);
         }
       }
     }
-    else if(state == Score) {
+    else if(state == Score)
+    {
       size_t idx = m_multipleScoreTrees ? scores.size() : 0;
-      float score = m_scoreTrees[idx]->nextSymbol(encodedBitStream);
+      float score = m_scoreTrees[idx]->NextSymbol(encodedBitStream);
       scores.push_back(score);
       
-      if(scores.size() == m_numScoreComponent) {
+      if(scores.size() == m_numScoreComponent)
+      {
         targetPhrase->SetScore(m_feature, scores, *m_weight, m_weightWP, *m_languageModels);
         
         if(m_containsAlignmentInfo)
@@ -369,42 +417,53 @@ TargetPhraseVectorPtr PhraseDecoder::decodeCollection(
           state = Add;
       }
     }
-    else if(state == Alignment) {
-      AlignPoint alignPoint = m_alignTree->nextSymbol(encodedBitStream);
-      if(alignPoint == alignStopSymbol) {
+    else if(state == Alignment)
+    {
+      AlignPoint alignPoint = m_alignTree->NextSymbol(encodedBitStream);
+      if(alignPoint == alignStopSymbol)
+      {
         state = Add;
       }
-      else {
+      else
+      {
         if(StaticData::Instance().UseAlignmentInfo())  
           alignment.insert(AlignPointSizeT(alignPoint));
       }
     }
     
-    if(state == Add) {
+    if(state == Add)
+    {
       if(StaticData::Instance().UseAlignmentInfo())
         targetPhrase->SetAlignmentInfo(alignment);
   
-      if(m_coding == PREnc) {
+      if(m_coding == PREnc)
+      {
         if(!m_maxRank || tpv->size() <= m_maxRank)
-          bitsLeft = encodedBitStream.remainingBits();
+          bitsLeft = encodedBitStream.RemainingBits();
         
         if(!topLevel && m_maxRank && tpv->size() >= m_maxRank)
           break;
       }
       
-      if(encodedBitStream.remainingBits() <= 8)
+      if(encodedBitStream.RemainingBits() <= 8)
         break;
       
       state = New;
     }    
   }
   
-  if(m_coding == PREnc && !extending) {
+  if(m_coding == PREnc && !extending)
+  {
     bitsLeft = bitsLeft > 8 ? bitsLeft : 0;
-    m_decodingCache.cache(sourcePhrase, tpv, bitsLeft, m_maxRank);
+    m_decodingCache.Cache(sourcePhrase, tpv, bitsLeft, m_maxRank);
   }
   
   return tpv;
+}
+
+void PhraseDecoder::PruneCache()
+{
+  m_decodingCache.Prune();
 }
 
 }

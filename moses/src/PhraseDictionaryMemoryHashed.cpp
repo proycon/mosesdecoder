@@ -75,7 +75,7 @@ bool PhraseDictionaryMemoryHashed::Load(const std::vector<FactorType> &input
     // Load source phrase index into memory
     indexSize = m_hash.Load(pFile);
   
-  size_t coderSize = m_phraseDecoder->load(pFile);
+  size_t coderSize = m_phraseDecoder->Load(pFile);
   
   size_t phraseSize;
   if(m_implementation == CompactDisk)
@@ -99,12 +99,12 @@ PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhra
   
   // There is no souch source phrase if source phrase is longer than longest
   // observed source phrase during compilation 
-  if(sourcePhrase.GetSize() > m_phraseDecoder->getMaxSourcePhraseLength())
+  if(sourcePhrase.GetSize() > m_phraseDecoder->GetMaxSourcePhraseLength())
     return NULL;
 
   // Retrieve target phrase collection from phrase table
   TargetPhraseVectorPtr decodedPhraseColl
-    = m_phraseDecoder->createTargetPhraseCollection(sourcePhrase, true);
+    = m_phraseDecoder->CreateTargetPhraseCollection(sourcePhrase, true);
   
   if(decodedPhraseColl != NULL && decodedPhraseColl->size()) {
     TargetPhraseVectorPtr tpv(new TargetPhraseVector(*decodedPhraseColl));
@@ -170,7 +170,7 @@ void PhraseDictionaryMemoryHashed::CleanUp() {
   if(m_implementation == CompactDisk)
     m_hash.KeepNLastRanges(0.01, 0.2);
     
-  m_phraseDecoder->pruneCache();
+  m_phraseDecoder->PruneCache();
   
 #ifdef WITH_THREADS
   boost::mutex::scoped_lock lock(m_sentenceMutex);

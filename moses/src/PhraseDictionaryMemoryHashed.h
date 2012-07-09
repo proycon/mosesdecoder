@@ -46,6 +46,8 @@ class PhraseDictionaryMemoryHashed : public PhraseDictionary
 protected:
   friend class PhraseDecoder;
 
+  PhraseTableImplementation m_implementation;
+  
   typedef std::map<Phrase, TargetPhraseCollection*> PhraseCache;
 #ifdef WITH_THREADS
   boost::mutex m_sentenceMutex;
@@ -63,8 +65,6 @@ protected:
   
   StringVector<unsigned char, size_t, MmapAllocator>  m_targetPhrasesMapped;
   StringVector<unsigned char, size_t, std::allocator> m_targetPhrasesMemory;
-  
-  PhraseTableImplementation m_implementation;
   
   const std::vector<FactorType>* m_input;
   const std::vector<FactorType>* m_output;

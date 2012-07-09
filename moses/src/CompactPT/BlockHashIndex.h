@@ -1,5 +1,5 @@
-#ifndef BLOCKHASHINDEX_H__
-#define BLOCKHASHINDEX_H__
+#ifndef moses_BlockHashIndex_h
+#define moses_BlockHashIndex_h
 
 #include <iostream>
 #include <string>
@@ -18,42 +18,17 @@
 #include "ThreadPool.h"
 #endif
 
-namespace Moses {
+namespace Moses
+{
 
-class BlockHashIndex {
+class BlockHashIndex
+{
   private:
-
-#ifdef WITH_THREADS
-    ThreadPool m_threadPool;
-    boost::mutex m_mutex;
- 
-    template <typename Keys>
-    class HashTask : public Task {
-      public:
-        HashTask(int id, BlockHashIndex& hash, Keys& keys)
-        : m_id(id), m_hash(hash), m_keys(new Keys(keys)) {}
-        
-        virtual void Run() {
-          m_hash.CalcHash(m_id, *m_keys);
-        }
-    
-        virtual ~HashTask() {
-            delete m_keys;
-        }
-    
-      private:
-        int m_id;
-        BlockHashIndex& m_hash;
-        Keys* m_keys;
-    };
-
-#endif
-
     std::priority_queue<int> m_queue;
     
-    size_t m_fingerPrintBits;
     size_t m_orderBits;
-    
+    size_t m_fingerPrintBits;
+
     std::FILE* m_fileHandle;
     size_t m_fileHandleStart;
     
@@ -72,23 +47,46 @@ class BlockHashIndex {
     int m_lastDropped;
     size_t m_numLoadedRanges;
     
+#ifdef WITH_THREADS
+    ThreadPool m_threadPool;
+    boost::mutex m_mutex;
+ 
+    template <typename Keys>
+    class HashTask : public Task
+    {
+      public:
+        HashTask(int id, BlockHashIndex& hash, Keys& keys)
+        : m_id(id), m_hash(hash), m_keys(new Keys(keys)) {}
+        
+        virtual void Run()
+        {
+          m_hash.CalcHash(m_id, *m_keys);
+        }
+    
+        virtual ~HashTask()
+        {
+            delete m_keys;
+        }
+    
+      private:
+        int m_id;
+        BlockHashIndex& m_hash;
+        Keys* m_keys;
+    };
+#endif
+    
     size_t GetFprint(const char* key) const;
     size_t GetHash(size_t i, const char* key);
         
   public:
-    
 #ifdef WITH_THREADS
-
     BlockHashIndex(size_t orderBits, size_t fingerPrintBits,
                    size_t threadsNum = 2);
     BlockHashIndex(size_t orderBits, size_t fingerPrintBits, CMPH_ALGO algo,
                    size_t threadsNum = 2);
-    
 #else
-
     BlockHashIndex(size_t orderBits, size_t fingerPrintBits);
     BlockHashIndex(size_t orderBits, size_t fingerPrintBits, CMPH_ALGO algo);
-    
 #endif
 
     ~BlockHashIndex();
@@ -125,7 +123,8 @@ class BlockHashIndex {
     void KeepNLastRanges(float ratio = 0.1, float tolerance = 0.1);
     
     template <typename Keys>
-    void AddRange(Keys &keys) {
+    void AddRange(Keys &keys)
+    {
       size_t current = m_landmarks.size();
       m_landmarks.push_back(keys[0]);
       m_size += keys.size();
@@ -139,7 +138,8 @@ class BlockHashIndex {
     }
     
     template <typename Keys>
-    void CalcHash(size_t current, Keys &keys) {
+    void CalcHash(size_t current, Keys &keys)
+    {
       cmph_io_adapter_t *source = VectorAdapter(keys);
           
       cmph_config_t *config = cmph_config_new(source);
@@ -152,24 +152,26 @@ class BlockHashIndex {
         new PairedPackedArray<>(keys.size(), m_orderBits, m_fingerPrintBits);
 
       size_t i = 0;
-      for(typename Keys::iterator it = keys.begin(); it != keys.end(); it++) {
-          std::string temp = *it;
-          size_t fprint = GetFprint(temp.c_str());
-          size_t idx = cmph_search(hash, temp.c_str(),
-                                   (cmph_uint32) temp.size());
+      for(typename Keys::iterator it = keys.begin(); it != keys.end(); it++)
+      {
+        std::string temp = *it;
+        size_t fprint = GetFprint(temp.c_str());
+        size_t idx = cmph_search(hash, temp.c_str(),
+                                 (cmph_uint32) temp.size());
 
-          pv->set(idx, i, fprint, m_orderBits, m_fingerPrintBits);
-          i++;
+        pv->Set(idx, i, fprint, m_orderBits, m_fingerPrintBits);
+        i++;
       }
       
 #ifdef WITH_THREADS
       boost::mutex::scoped_lock lock(m_mutex);
 #endif
 
-      if(m_hashes.size() <= current) {
-          m_hashes.resize(current + 1, 0);    
-          m_arrays.resize(current + 1, 0);
-          m_clocks.resize(current + 1, 0);
+      if(m_hashes.size() <= current)
+      {
+        m_hashes.resize(current + 1, 0);    
+        m_arrays.resize(current + 1, 0);
+        m_clocks.resize(current + 1, 0);
       }
       
       m_hashes[current] = hash;
@@ -178,16 +180,16 @@ class BlockHashIndex {
       m_queue.push(-current);
     }
 
-    cmph_io_adapter_t* VectorAdapter(std::vector<std::string>& v) {
+    cmph_io_adapter_t* VectorAdapter(std::vector<std::string>& v)
+    {
       return CmphVectorAdapter(v);
     }
       
     template <typename ValueT, typename PosT, template <typename> class Allocator>
-    cmph_io_adapter_t* VectorAdapter(StringVector<ValueT, PosT, Allocator>& sv) {
+    cmph_io_adapter_t* VectorAdapter(StringVector<ValueT, PosT, Allocator>& sv)
+    {
       return CmphStringVectorAdapter(sv);
     }
-    
-
 
 };
 

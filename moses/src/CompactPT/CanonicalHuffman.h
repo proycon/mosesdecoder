@@ -11,7 +11,8 @@ namespace Moses {
 template<typename PosType, typename DataType> class Hufftree;
 
 template <typename Data, typename Code = size_t>
-class CanonicalHuffman {
+class CanonicalHuffman
+{
   private:
     std::vector<Data> m_symbols;
     
@@ -26,19 +27,22 @@ class CanonicalHuffman {
       
       MinHeapSorter(std::vector<size_t>& vec) : m_vec(vec) { }
       
-      bool operator()(size_t a, size_t b) {
+      bool operator()(size_t a, size_t b)
+      {
         return m_vec[a] > m_vec[b];
       }
     };
     
     template <class Iterator>
-    void calcLengths(Iterator begin, Iterator end, std::vector<size_t>& lengths) {
+    void CalcLengths(Iterator begin, Iterator end, std::vector<size_t>& lengths)
+    {
       size_t n = std::distance(begin, end);
       std::vector<size_t> A(2 * n, 0);
       
       m_symbols.resize(n);
       size_t i = 0;
-      for(Iterator it = begin; it != end; it++) {
+      for(Iterator it = begin; it != end; it++)
+      {
         m_symbols[i] = it->first;
         
         A[i] = n + i;
@@ -46,7 +50,8 @@ class CanonicalHuffman {
         i++;
       }
       
-      if(n == 1) {
+      if(n == 1)
+      {
         lengths.push_back(1);
         return;
       }
@@ -56,7 +61,8 @@ class CanonicalHuffman {
       
       size_t h = n;
       size_t m1, m2;
-      while(h > 1) {
+      while(h > 1)
+      {
         m1 = A[0];
         std::pop_heap(A.begin(), A.begin() + h, hs);
         
@@ -82,7 +88,8 @@ class CanonicalHuffman {
     }
 
 
-    void calcCodes(std::vector<size_t>& lengths) {
+    void CalcCodes(std::vector<size_t>& lengths)
+    {
       std::vector<size_t> numLength;
       for(std::vector<size_t>::iterator it = lengths.begin();
           it != lengths.end(); it++) {
@@ -107,7 +114,8 @@ class CanonicalHuffman {
       t_symbols.resize(lengths.size());
       
       std::vector<size_t> nextCode = m_firstCodes;
-      for(size_t i = 0; i < lengths.size(); i++) {    
+      for(size_t i = 0; i < lengths.size(); i++)
+      {    
         Data data = m_symbols[i];
         size_t length = lengths[i];
         
@@ -123,30 +131,35 @@ class CanonicalHuffman {
     
   public:
 
-    CanonicalHuffman(std::FILE* pFile, bool forEncoding = false) {
-      load(pFile);
+    CanonicalHuffman(std::FILE* pFile, bool forEncoding = false)
+    {
+      Load(pFile);
       
       if(forEncoding)
-        createCodeMap();
+        CreateCodeMap();
     }
     
     template <class Iterator>
-    CanonicalHuffman(Iterator begin, Iterator end, bool forEncoding = true) {
+    CanonicalHuffman(Iterator begin, Iterator end, bool forEncoding = true)
+    {
       std::vector<size_t> lengths;
-      calcLengths(begin, end, lengths);
-      calcCodes(lengths);
+      CalcLengths(begin, end, lengths);
+      CalcCodes(lengths);
 
       if(forEncoding)
-        createCodeMap();
+        CreateCodeMap();
     }
     
-    void createCodeMap() {
-      for(size_t l = 1; l < m_lengthIndex.size(); l++) {
+    void CreateCodeMap()
+    {
+      for(size_t l = 1; l < m_lengthIndex.size(); l++)
+      {
         Code code = m_firstCodes[l];
         size_t num = ((l+1 < m_lengthIndex.size()) ? m_lengthIndex[l+1]
                       : m_symbols.size()) - m_lengthIndex[l];
         
-        for(size_t i = 0; i < num; i++) {
+        for(size_t i = 0; i < num; i++)
+        {
           Data data = m_symbols[m_lengthIndex[l] + i];  
           boost::dynamic_bitset<> bitCode(l, code);
           m_encodeMap[data] = bitCode;  
@@ -155,17 +168,21 @@ class CanonicalHuffman {
       }
     }
     
-    boost::dynamic_bitset<>& encode(Data data) {
+    boost::dynamic_bitset<>& Encode(Data data)
+    {
       return m_encodeMap[data];
     }
     
     template <class BitStream>
-    Data nextSymbol(BitStream& bitStream) {
-      if(bitStream.remainingBits()) {
-        Code code = bitStream.getNext();
+    Data NextSymbol(BitStream& bitStream)
+    {
+      if(bitStream.RemainingBits())
+      {
+        Code code = bitStream.GetNext();
         size_t length = 1;
-        while(code < m_firstCodes[length]) {
-          code = 2 * code + bitStream.getNext();
+        while(code < m_firstCodes[length])
+        {
+          code = 2 * code + bitStream.GetNext();
           length++;
         }
         
@@ -176,7 +193,8 @@ class CanonicalHuffman {
       return Data();
     }
     
-    size_t load(std::FILE* pFile) {
+    size_t Load(std::FILE* pFile)
+    {
       size_t start = std::ftell(pFile);
       
       size_t size;
@@ -195,7 +213,8 @@ class CanonicalHuffman {
       return std::ftell(pFile) - start;
     }
     
-    size_t save(std::FILE* pFile) {
+    size_t Save(std::FILE* pFile)
+    {
       size_t start = std::ftell(pFile);
       
       size_t size = m_symbols.size();
@@ -216,17 +235,17 @@ class CanonicalHuffman {
 };
 
 template <class Container = std::string>
-class BitStream {
+class BitStream
+{
   private:
     Container& m_data;
     
     typename Container::iterator m_iterator;
     typename Container::value_type m_currentValue;
     
-    size_t m_bitPos;
     size_t m_valueBits;
-    
     typename Container::value_type m_mask;
+    size_t m_bitPos;
     
   public:
     
@@ -235,26 +254,32 @@ class BitStream {
       m_valueBits(sizeof(typename Container::value_type) * 8),
       m_mask(1), m_bitPos(0) { }
     
-    size_t remainingBits() {
+    size_t RemainingBits()
+    {
       if(m_data.size() * m_valueBits < m_bitPos)
         return 0;
       return m_data.size() * m_valueBits - m_bitPos;
     }
     
-    void setLeft(size_t bitPos) {
+    void SetLeft(size_t bitPos)
+    {
       m_bitPos = m_data.size() * m_valueBits - bitPos;
       m_iterator = m_data.begin() + int((m_bitPos-1)/m_valueBits);
       m_currentValue = (*m_iterator) >> ((m_bitPos-1) % m_valueBits);
       m_iterator++;
     }
     
-    bool getNext() {
-      if(m_bitPos % m_valueBits == 0) {
-        if(m_iterator != m_data.end()) {
+    bool GetNext()
+    {
+      if(m_bitPos % m_valueBits == 0)
+      {
+        if(m_iterator != m_data.end())
+        {
           m_currentValue = *m_iterator++;
         }
       }
-      else {
+      else
+      {
         m_currentValue = m_currentValue >> 1;
       } 
       
@@ -262,10 +287,13 @@ class BitStream {
       return (m_currentValue & m_mask);
     }
     
-    void putCode(boost::dynamic_bitset<> code) {
+    void PutCode(boost::dynamic_bitset<> code)
+    {
       
-      for(int j = code.size()-1; j >= 0; j--) {    
-        if(m_bitPos % m_valueBits == 0) {
+      for(int j = code.size()-1; j >= 0; j--)
+      {    
+        if(m_bitPos % m_valueBits == 0)
+        {
           m_data.push_back(0);
         }
         
@@ -277,33 +305,14 @@ class BitStream {
       
     }
     
-    std::string status() {
-      std::stringstream ss;
-      
-      /*
-        typename Container::iterator m_iterator;
-        typename Container::value_type m_currentValue;
-    
-        size_t m_bitPos;
-        size_t m_valueBits;
-    
-        typename Container::value_type m_mask;
-      */
-      
-      ss << "m_iterator: " << unsigned((unsigned char)*m_iterator) << std::endl;
-      ss << "m_currentValue: " <<  unsigned((unsigned char)m_currentValue) << std::endl;
-      ss << "m_bitPos: " << m_bitPos << std::endl;
-      ss << "m_valueBits: " << m_valueBits << std::endl;
-      ss << "m_mask: " <<  unsigned((unsigned char)m_mask) << std::endl;
-      return ss.str();
-    }
-    
-    void reset() {
+    void Reset()
+    {
       m_iterator = m_data.begin();
       m_bitPos = 0;
     }
     
-    Container& container() {
+    Container& GetContainer()
+    {
       return m_data;
     }
 };

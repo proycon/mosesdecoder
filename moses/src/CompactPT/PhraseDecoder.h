@@ -1,5 +1,5 @@
-#ifndef PHRASEDECODER_H__
-#define PHRASEDECODER_H__
+#ifndef moses_PhraseDecoder_h
+#define moses_PhraseDecoder_h
 
 #include <sstream>
 #include <vector>
@@ -26,11 +26,13 @@
 #include "ConsistantPhrases.h"
 #include "TargetPhraseCollectionCache.h"
 
-namespace Moses {
+namespace Moses
+{
 
 class PhraseDictionaryMemoryHashed;
 
-class PhraseDecoder {
+class PhraseDecoder
+{
   protected:
     
     friend class PhraseDictionaryMemoryHashed;
@@ -53,10 +55,11 @@ class PhraseDecoder {
     std::vector<SrcTrg> m_lexicalTable;
     
     CanonicalHuffman<unsigned>* m_symbolTree;
-    CanonicalHuffman<AlignPoint>* m_alignTree;
     
     bool m_multipleScoreTrees;
     std::vector<CanonicalHuffman<float>*> m_scoreTrees;
+    
+    CanonicalHuffman<AlignPoint>* m_alignTree;
     
     TargetPhraseCollectionCache m_decodingCache;
     
@@ -75,27 +78,27 @@ class PhraseDecoder {
   
     // ***********************************************
     
-    unsigned getSourceSymbolId(std::string& s);
-    std::string getTargetSymbol(unsigned id) const;
+    unsigned GetSourceSymbolId(std::string& s);
+    std::string GetTargetSymbol(unsigned id) const;
     
-    size_t getREncType(unsigned encodedSymbol);
-    size_t getPREncType(unsigned encodedSymbol);
+    size_t GetREncType(unsigned encodedSymbol);
+    size_t GetPREncType(unsigned encodedSymbol);
     
-    unsigned getTranslation(unsigned srcIdx, size_t rank);
+    unsigned GetTranslation(unsigned srcIdx, size_t rank);
     
-    size_t getMaxSourcePhraseLength();
+    size_t GetMaxSourcePhraseLength();
     
-    unsigned decodeREncSymbol1(unsigned encodedSymbol);
-    unsigned decodeREncSymbol2Rank(unsigned encodedSymbol);
-    unsigned decodeREncSymbol2Position(unsigned encodedSymbol);
-    unsigned decodeREncSymbol3(unsigned encodedSymbol);
+    unsigned DecodeREncSymbol1(unsigned encodedSymbol);
+    unsigned DecodeREncSymbol2Rank(unsigned encodedSymbol);
+    unsigned DecodeREncSymbol2Position(unsigned encodedSymbol);
+    unsigned DecodeREncSymbol3(unsigned encodedSymbol);
     
-    unsigned decodePREncSymbol1(unsigned encodedSymbol);
-    int decodePREncSymbol2Left(unsigned encodedSymbol);
-    int decodePREncSymbol2Right(unsigned encodedSymbol);
-    unsigned decodePREncSymbol2Rank(unsigned encodedSymbol);
+    unsigned DecodePREncSymbol1(unsigned encodedSymbol);
+    int DecodePREncSymbol2Left(unsigned encodedSymbol);
+    int DecodePREncSymbol2Right(unsigned encodedSymbol);
+    unsigned DecodePREncSymbol2Rank(unsigned encodedSymbol);
     
-    std::string makeSourceKey(std::string &);
+    std::string MakeSourceKey(std::string &);
     
   public:
     
@@ -112,20 +115,17 @@ class PhraseDecoder {
     
     ~PhraseDecoder();
      
-    size_t load(std::FILE* in);
+    size_t Load(std::FILE* in);
     
-    TargetPhraseVectorPtr createTargetPhraseCollection(const Phrase &sourcePhrase,
+    TargetPhraseVectorPtr CreateTargetPhraseCollection(const Phrase &sourcePhrase,
                                                        bool topLevel = false);
     
-    TargetPhraseVectorPtr decodeCollection(TargetPhraseVectorPtr tpv,
+    TargetPhraseVectorPtr DecodeCollection(TargetPhraseVectorPtr tpv,
                                            BitStream<> &encodedBitStream,
                                            const Phrase &sourcePhrase,
                                            bool topLevel);
     
-    void pruneCache() {
-      m_decodingCache.prune();
-    }
-    
+    void PruneCache();
 };
 
 }

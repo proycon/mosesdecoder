@@ -1,12 +1,15 @@
 #include "CmphStringVectorAdapter.h"
 
-namespace Moses {
+namespace Moses
+{
     
-    void CmphStringVectorAdapterDispose(void *data, char *key, cmph_uint32 keylen) {
+    void CmphStringVectorAdapterDispose(void *data, char *key, cmph_uint32 keylen)
+    {
         delete[] key;
     }
 
-    void CmphStringVectorAdapterRewind(void *data) {
+    void CmphStringVectorAdapterRewind(void *data)
+    {
         cmph_vector_t *cmph_vector = (cmph_vector_t *)data;
         cmph_vector->position = 0;
     }
@@ -28,7 +31,8 @@ namespace Moses {
         return key_source;
     }
 
-    int CmphVectorAdapterRead(void *data, char **key, cmph_uint32 *keylen) {
+    int CmphVectorAdapterRead(void *data, char **key, cmph_uint32 *keylen)
+    {
         cmph_vector_t *cmph_vector = (cmph_vector_t *)data;
         std::vector<std::string>* v = (std::vector<std::string>*)cmph_vector->vector;
         size_t size;
@@ -41,16 +45,19 @@ namespace Moses {
         return (int)(*keylen);
     }
     
-    void CmphVectorAdapterDispose(void *data, char *key, cmph_uint32 keylen) {
+    void CmphVectorAdapterDispose(void *data, char *key, cmph_uint32 keylen)
+    {
         delete[] key;
     }
 
-    void CmphVectorAdapterRewind(void *data) {
+    void CmphVectorAdapterRewind(void *data)
+    {
         cmph_vector_t *cmph_vector = (cmph_vector_t *)data;
         cmph_vector->position = 0;
     }
 
-    cmph_io_adapter_t* CmphVectorAdapter(std::vector<std::string>& v) {
+    cmph_io_adapter_t* CmphVectorAdapter(std::vector<std::string>& v)
+    {
         cmph_io_adapter_t * key_source = CmphVectorAdapterNew(v);
         
         key_source->read = CmphVectorAdapterRead;

@@ -267,7 +267,7 @@ std::vector<float> LexicalReorderingTableMemoryHashed::GetScore(const Phrase& f,
       std::string scoresString = m_scores[index];
       BitStream<> bitStream(scoresString);
       for(size_t i = 0; i < num_scores; i++)
-        scores.push_back(m_tree->nextSymbol(bitStream));
+        scores.push_back(m_tree->NextSymbol(bitStream));
     
       return scores;
     }
@@ -282,7 +282,7 @@ std::vector<float> LexicalReorderingTableMemoryHashed::GetScore(const Phrase& f,
         std::string scoresString = m_scores[index];
         BitStream<> bitStream(scoresString);
         for(size_t i = 0; i < num_scores; i++)
-          scores.push_back(m_tree->nextSymbol(bitStream));
+          scores.push_back(m_tree->NextSymbol(bitStream));
     
         return scores;
       }
@@ -449,7 +449,7 @@ void LexicalReorderingTableMemoryHashed::LoadBinary(const std::string& filePath)
 
 void LexicalReorderingTableMemoryHashed::SaveBinary(const std::string& filePath) {
   std::FILE* pFile = std::fopen(filePath.c_str() , "w");
-  m_tree->save(pFile);
+  m_tree->Save(pFile);
   m_hash.Save(pFile);
   m_scores.save(pFile);
   std::fclose(pFile);

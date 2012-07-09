@@ -1,5 +1,5 @@
-#ifndef CMPHSTRINGVECTORADAPTER_H__
-#define CMPHSTRINGVECTORADAPTER_H__
+#ifndef moses_CmphStringVectorAdapterNew_h
+#define moses_CmphStringVectorAdapterNew_h
 
 #include <cassert>
 #include <cstring>
@@ -7,11 +7,14 @@
 #include "cmph/src/cmph.h"
 #include "StringVector.h"
 
-namespace Moses {
-    typedef struct {
+namespace Moses
+{
+    typedef struct
+    {
         void *vector;
         cmph_uint32 position; 
-    } cmph_vector_t;
+    }
+    cmph_vector_t;
    
       
     template <typename ValueT, typename PosT, template <typename> class Allocator>
@@ -31,7 +34,8 @@ namespace Moses {
     }
 
     template <typename ValueT, typename PosT, template <typename> class Allocator>
-    int CmphStringVectorAdapterRead(void *data, char **key, cmph_uint32 *keylen) {
+    int CmphStringVectorAdapterRead(void *data, char **key, cmph_uint32 *keylen)
+    {
         cmph_vector_t *cmph_vector = (cmph_vector_t *)data;
         StringVector<ValueT, PosT, Allocator>* sv = (StringVector<ValueT, PosT, Allocator>*)cmph_vector->vector;
         size_t size;
@@ -49,7 +53,8 @@ namespace Moses {
     void CmphStringVectorAdapterRewind(void *data);
 
     template <typename ValueT, typename PosT, template <typename> class Allocator>
-    cmph_io_adapter_t* CmphStringVectorAdapter(StringVector<ValueT, PosT, Allocator>& sv) {
+    cmph_io_adapter_t* CmphStringVectorAdapter(StringVector<ValueT, PosT, Allocator>& sv)
+    {
         cmph_io_adapter_t * key_source = CmphStringVectorAdapterNew(sv);
         
         key_source->read = CmphStringVectorAdapterRead<ValueT, PosT, Allocator>;
