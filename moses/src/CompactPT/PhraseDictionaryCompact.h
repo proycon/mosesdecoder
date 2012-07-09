@@ -18,8 +18,8 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ***********************************************************************/
 
-#ifndef moses_PhraseDictionaryMemoryHashed_h
-#define moses_PhraseDictionaryMemoryHashed_h
+#ifndef moses_PhraseDictionaryCompact_h
+#define moses_PhraseDictionaryCompact_h
 
 #include <boost/unordered_map.hpp>
 
@@ -31,17 +31,18 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "PhraseDictionary.h"
 #include "ThreadPool.h"
-#include "CompactPT/BlockHashIndex.h"
-#include "CompactPT/StringVector.h"
-#include "CompactPT/PhraseDecoder.h"
-#include "CompactPT/TargetPhraseCollectionCache.h"
+
+#include "BlockHashIndex.h"
+#include "StringVector.h"
+#include "PhraseDecoder.h"
+#include "TargetPhraseCollectionCache.h"
 
 namespace Moses
 {
 
 class PhraseDecoder;
 
-class PhraseDictionaryMemoryHashed : public PhraseDictionary
+class PhraseDictionaryCompact : public PhraseDictionary
 {
 protected:
   friend class PhraseDecoder;
@@ -74,7 +75,7 @@ protected:
   float m_weightWP;
 
 public:
-  PhraseDictionaryMemoryHashed(size_t numScoreComponent,
+  PhraseDictionaryCompact(size_t numScoreComponent,
                                PhraseTableImplementation implementation,
                                PhraseDictionaryFeature* feature)
     : PhraseDictionary(numScoreComponent, feature),
@@ -84,7 +85,7 @@ public:
       m_phraseDecoder(0)
   {}
     
-  virtual ~PhraseDictionaryMemoryHashed();
+  virtual ~PhraseDictionaryCompact();
 
   bool Load(const std::vector<FactorType> &input
             , const std::vector<FactorType> &output

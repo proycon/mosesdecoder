@@ -27,7 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <algorithm>
 #include <sys/stat.h>
 
-#include "PhraseDictionaryMemoryHashed.h"
+#include "PhraseDictionaryCompact.h"
 #include "FactorCollection.h"
 #include "Word.h"
 #include "Util.h"
@@ -42,7 +42,7 @@ using namespace std;
 namespace Moses
 {
   
-bool PhraseDictionaryMemoryHashed::Load(const std::vector<FactorType> &input
+bool PhraseDictionaryCompact::Load(const std::vector<FactorType> &input
                                   , const std::vector<FactorType> &output
                                   , const string &filePath
                                   , const vector<float> &weight
@@ -95,7 +95,7 @@ struct CompareTargetPhrase {
 };
 
 const TargetPhraseCollection*
-PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhrase) const {
+PhraseDictionaryCompact::GetTargetPhraseCollection(const Phrase &sourcePhrase) const {
   
   // There is no souch source phrase if source phrase is longer than longest
   // observed source phrase during compilation 
@@ -119,7 +119,7 @@ PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhra
       phraseColl->Add(new TargetPhrase(*it));
     
     // Cache phrase pair for for clean-up or retrieval with PREnc
-    const_cast<PhraseDictionaryMemoryHashed*>(this)->CacheForCleanup(sourcePhrase, phraseColl);
+    const_cast<PhraseDictionaryCompact*>(this)->CacheForCleanup(sourcePhrase, phraseColl);
     
     return phraseColl;
   }
@@ -128,7 +128,7 @@ PhraseDictionaryMemoryHashed::GetTargetPhraseCollection(const Phrase &sourcePhra
   
 }
 
-PhraseDictionaryMemoryHashed::~PhraseDictionaryMemoryHashed() {
+PhraseDictionaryCompact::~PhraseDictionaryCompact() {
   if(m_phraseDecoder)
     delete m_phraseDecoder;
 }
@@ -136,7 +136,7 @@ PhraseDictionaryMemoryHashed::~PhraseDictionaryMemoryHashed() {
 //TO_STRING_BODY(PhraseDictionaryMemoryHashed)
 
 TargetPhraseCollection*
-PhraseDictionaryMemoryHashed::RetrieveFromCache(const Phrase &sourcePhrase) {
+PhraseDictionaryCompact::RetrieveFromCache(const Phrase &sourcePhrase) {
 #ifdef WITH_THREADS
   boost::mutex::scoped_lock lock(m_sentenceMutex);
   PhraseCache &ref = m_sentenceCache[pthread_self()]; 
@@ -150,7 +150,7 @@ PhraseDictionaryMemoryHashed::RetrieveFromCache(const Phrase &sourcePhrase) {
     return NULL;
 }
 
-void PhraseDictionaryMemoryHashed::CacheForCleanup(const Phrase &sourcePhrase,
+void PhraseDictionaryCompact::CacheForCleanup(const Phrase &sourcePhrase,
                                                    TargetPhraseCollection* tpc) {
 #ifdef WITH_THREADS
   boost::mutex::scoped_lock lock(m_sentenceMutex);
@@ -160,13 +160,12 @@ void PhraseDictionaryMemoryHashed::CacheForCleanup(const Phrase &sourcePhrase,
 #endif
 }
 
-void PhraseDictionaryMemoryHashed::InitializeForInput(const Moses::InputType&) {}
+void PhraseDictionaryCompact::InitializeForInput(const Moses::InputType&) {}
 
-void
-PhraseDictionaryMemoryHashed::AddEquivPhrase(const Phrase &source,
+void PhraseDictionaryCompact::AddEquivPhrase(const Phrase &source,
                                              const TargetPhrase &targetPhrase) { }
 
-void PhraseDictionaryMemoryHashed::CleanUp() {
+void PhraseDictionaryCompact::CleanUp() {
   if(m_implementation == CompactDisk)
     m_hash.KeepNLastRanges(0.01, 0.2);
     

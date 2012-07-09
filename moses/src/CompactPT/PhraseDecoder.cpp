@@ -6,7 +6,7 @@ namespace Moses
 {
 
 PhraseDecoder::PhraseDecoder(
-  PhraseDictionaryMemoryHashed &phraseDictionary,
+  PhraseDictionaryCompact &phraseDictionary,
   const std::vector<FactorType>* &input,
   const std::vector<FactorType>* &output,
   const PhraseDictionaryFeature* feature,

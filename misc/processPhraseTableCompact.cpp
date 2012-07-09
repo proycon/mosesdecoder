@@ -28,7 +28,7 @@ void printHelp(char **argv) {
 
 
 int main(int argc, char **argv) {
-  std::cerr << "processPhraseTableHashed by Marcin Junczys-Dowmunt\n";
+  std::cerr << "processPhraseTableCompact by Marcin Junczys-Dowmunt\n";
     
   std::string inFilePath;
   std::string outFilePath("out");

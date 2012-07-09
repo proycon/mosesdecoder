@@ -24,8 +24,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "PhraseDictionaryTreeAdaptor.h"
 #include "PhraseDictionarySCFG.h"
 #include "PhraseDictionaryOnDisk.h"
-#include "PhraseDictionaryMemoryHashed.h"
 #ifndef WIN32
+#include "CompactPT/PhraseDictionaryCompact.h"
 #include "PhraseDictionaryDynSuffixArray.h"
 #endif
 #include "StaticData.h"
@@ -121,7 +121,7 @@ PhraseDictionary* PhraseDictionaryFeature::LoadPhraseTable(const TranslationSyst
       assert(false);
     }
 
-    PhraseDictionaryMemoryHashed* pdm  = new PhraseDictionaryMemoryHashed(m_numScoreComponent, m_implementation, this);
+    PhraseDictionaryCompact* pdm  = new PhraseDictionaryCompact(m_numScoreComponent, m_implementation, this);
     bool ret = pdm->Load(GetInput(), GetOutput()
                          , m_filePath
                          , m_weight

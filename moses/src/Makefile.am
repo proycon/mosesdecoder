@@ -9,6 +9,7 @@ libmoses_la_HEADERS = \
 	CompactPT/MurmurHash3.h \
         CompactPT/PhraseDecoder.h \
 	CompactPT/PhrasetableCreator.h \
+        CompactPT/PhraseDictionaryCompact.h \
         AlignmentInfo.h \
         AlignmentInfoCollection.h \
         BilingualDynSuffixArray.h \
@@ -182,6 +183,7 @@ libmoses_la_SOURCES = \
         CompactPT/BlockHashIndex.cpp \
         CompactPT/MurmurHash3.cpp \
         CompactPT/PhraseDecoder.cpp \
+        CompactPT/PhraseDictionaryCompact.cpp \
         AlignmentInfo.cpp \
         AlignmentInfoCollection.cpp \
         BilingualDynSuffixArray.cpp \
@@ -255,7 +257,6 @@ libmoses_la_SOURCES = \
         PhraseDictionary.cpp \
         PhraseDictionaryDynSuffixArray.cpp \
         PhraseDictionaryMemory.cpp \
-        PhraseDictionaryMemoryHashed.cpp \
         PhraseDictionarySCFG.cpp \
         PhraseDictionaryNode.cpp \
         PhraseDictionaryNodeSCFG.cpp \

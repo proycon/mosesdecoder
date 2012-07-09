@@ -19,8 +19,8 @@
 #include "StaticData.h"
 #include "WordsRange.h"
 #include "UserMessage.h"
-#include "PhraseDictionaryMemoryHashed.h"
 
+#include "PhraseDictionaryCompact.h"
 #include "StringVector.h"
 #include "CanonicalHuffman.h"
 #include "ConsistantPhrases.h"
@@ -29,13 +29,13 @@
 namespace Moses
 {
 
-class PhraseDictionaryMemoryHashed;
+class PhraseDictionaryCompact;
 
 class PhraseDecoder
 {
   protected:
     
-    friend class PhraseDictionaryMemoryHashed;
+    friend class PhraseDictionaryCompact;
     
     typedef std::pair<unsigned char, unsigned char> AlignPoint;
     typedef std::pair<unsigned, unsigned> SrcTrg;
@@ -63,7 +63,7 @@ class PhraseDecoder
     
     TargetPhraseCollectionCache m_decodingCache;
     
-    PhraseDictionaryMemoryHashed& m_phraseDictionary;   
+    PhraseDictionaryCompact& m_phraseDictionary;   
     
     // ***********************************************
     
@@ -103,7 +103,7 @@ class PhraseDecoder
   public:
     
     PhraseDecoder(
-      PhraseDictionaryMemoryHashed &phraseDictionary,
+      PhraseDictionaryCompact &phraseDictionary,
       const std::vector<FactorType>* &input,
       const std::vector<FactorType>* &output,
       const PhraseDictionaryFeature* feature,
