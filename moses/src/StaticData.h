@@ -156,6 +156,11 @@ protected:
   
   // MJD: Parameter for WIPO-specific n-best list format
   bool m_nBestWipo;
+  
+  // MJD: Compact phrase table and reordering table
+  bool m_minphrMemory;
+  bool m_minlexrMemory;
+  
   bool m_dropUnknown; //! false = treat unknown words as unknowns, and translate them as themselves; true = drop (ignore) them
   bool m_wordDeletionEnabled;
 
@@ -502,6 +507,16 @@ public:
   // MJD: WIPO-specific n-best list
   bool UseNBestWipoFormat() const {
      return m_nBestWipo;
+  }
+
+  // MJD:
+  bool UseMinphrInMemory() const {
+     return m_minphrMemory;
+  }
+
+  // MJD: 
+  bool UseMinlexrInMemory() const {
+     return m_minlexrMemory;
   }
   
   size_t GetNumLinkParams() const {

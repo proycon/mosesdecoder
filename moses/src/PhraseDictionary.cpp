@@ -68,7 +68,7 @@ PhraseDictionaryFeature::PhraseDictionaryFeature
   const StaticData& staticData = StaticData::Instance();
   const_cast<ScoreIndexManager&>(staticData.GetScoreIndexManager()).AddScoreProducer(this);
   if (implementation == Memory || implementation == SCFG || implementation == SuffixArray
-      || implementation == CompactDisk || implementation == CompactMemory) {
+      || implementation == Compact) {
     m_useThreadSafePhraseDictionary = true;
   } else {
     m_useThreadSafePhraseDictionary = false;
@@ -113,9 +113,7 @@ PhraseDictionary* PhraseDictionaryFeature::LoadPhraseTable(const TranslationSyst
     assert(ret);
     return pdm;
   }
-  else if (m_implementation == CompactDisk || m_implementation == CompactMemory) {
-    // memory phrase table
-    VERBOSE(2,"using hashed tables" << std::endl);
+  else if (m_implementation == Compact) {
     if (staticData.GetInputType() != SentenceInput) {
       UserMessage::Add("Must use binary phrase table for this input type");
       assert(false);

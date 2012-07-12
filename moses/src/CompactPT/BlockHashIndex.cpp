@@ -220,8 +220,6 @@ size_t BlockHashIndex::LoadIndex(std::FILE* mphf)
   std::fread(&m_fingerPrintBits, sizeof(size_t), 1, mphf);
   m_fileHandleStart = std::ftell(m_fileHandle);
   
-  std::cerr <<  m_fileHandleStart << std::endl;
-  
   size_t relIndexPos;
   std::fread(&relIndexPos, sizeof(size_t), 1, mphf);
   std::fseek(m_fileHandle, m_fileHandleStart + relIndexPos, SEEK_SET);

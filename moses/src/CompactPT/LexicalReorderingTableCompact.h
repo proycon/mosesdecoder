@@ -19,8 +19,14 @@ class LexicalReorderingTableCompact: public LexicalReorderingTable
   private:
     bool m_inMemory;
     
+    size_t m_numScoreComponent;
+    bool m_multipleScoreTrees;
+    
     BlockHashIndex m_hash;
-    CanonicalHuffman<float>* m_scoreTree;
+    
+    typedef CanonicalHuffman<float> ScoreTree;  
+    std::vector<ScoreTree*> m_scoreTrees;
+    
     StringVector<unsigned char, unsigned long, MmapAllocator>  m_scoresMapped;
     StringVector<unsigned char, unsigned long, std::allocator> m_scoresMemory;
 
@@ -28,7 +34,8 @@ class LexicalReorderingTableCompact: public LexicalReorderingTable
     std::string MakeKey(const std::string& f, const std::string& e, const std::string& c) const;
     
   public:
-    LexicalReorderingTableCompact( const std::string& filePath,
+    LexicalReorderingTableCompact(
+                                const std::string& filePath,
                                 const std::vector<FactorType>& f_factors,
                                 const std::vector<FactorType>& e_factors,
                                 const std::vector<FactorType>& c_factors);
@@ -41,7 +48,7 @@ class LexicalReorderingTableCompact: public LexicalReorderingTable
     virtual ~LexicalReorderingTableCompact();
 
     virtual std::vector<float> GetScore(const Phrase& f, const Phrase& e, const Phrase& c);
-    void Load(const std::string& filePath);
+    void Load(std::string filePath);
 };
 
 }

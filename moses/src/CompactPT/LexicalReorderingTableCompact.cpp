@@ -7,7 +7,10 @@ LexicalReorderingTableCompact::LexicalReorderingTableCompact(
   const std::vector<FactorType>& f_factors,
   const std::vector<FactorType>& e_factors,
   const std::vector<FactorType>& c_factors)
-  : LexicalReorderingTable(f_factors, e_factors, c_factors), m_inMemory(false), m_hash(10, 16), m_scoreTree(0)
+  : LexicalReorderingTable(f_factors, e_factors, c_factors),
+  m_inMemory(StaticData::Instance().UseMinlexrInMemory()),
+  m_numScoreComponent(6), m_multipleScoreTrees(true),
+  m_hash(10, 16), m_scoreTrees(1, NULL)
 {
   Load(filePath);
 }
@@ -16,12 +19,15 @@ LexicalReorderingTableCompact::LexicalReorderingTableCompact(
   const std::vector<FactorType>& f_factors,
   const std::vector<FactorType>& e_factors,
   const std::vector<FactorType>& c_factors)
-  : LexicalReorderingTable(f_factors, e_factors, c_factors), m_inMemory(false), m_hash(10, 16), m_scoreTree(0)
-{}
+  : LexicalReorderingTable(f_factors, e_factors, c_factors),
+  m_inMemory(StaticData::Instance().UseMinlexrInMemory()),
+  m_numScoreComponent(6), m_multipleScoreTrees(true),
+  m_hash(10, 16), m_scoreTrees(1, NULL)
+{ }
 
 LexicalReorderingTableCompact::~LexicalReorderingTableCompact() {
-  if(m_scoreTree)
-    delete m_scoreTree;
+  for(size_t i = 0; i < m_scoreTrees.size(); i++)
+    delete m_scoreTrees[i];
 }
 
 std::vector<float> LexicalReorderingTableCompact::GetScore(const Phrase& f,
@@ -30,7 +36,6 @@ std::vector<float> LexicalReorderingTableCompact::GetScore(const Phrase& f,
 {
   std::string key;
   Scores scores;
-  size_t num_scores = 6;
   
   if(0 == c.GetSize())
     key = MakeKey(f, e, c);
@@ -51,8 +56,8 @@ std::vector<float> LexicalReorderingTableCompact::GetScore(const Phrase& f,
       scoresString = m_scoresMapped[index];
       
     BitStream<> bitStream(scoresString);
-    for(size_t i = 0; i < num_scores; i++)
-      scores.push_back(m_scoreTree->NextSymbol(bitStream));
+    for(size_t i = 0; i < m_numScoreComponent; i++)
+      scores.push_back(m_scoreTrees[m_multipleScoreTrees ? i : 0]->NextSymbol(bitStream));
 
     return scores;
   }
@@ -98,20 +103,33 @@ std::string  LexicalReorderingTableCompact::MakeKey(const std::string& f,
   return key;
 }
 
-void LexicalReorderingTableCompact::Load(const std::string& filePath)
-{
-  std::cerr << "Loading hashed version of lexical reordering model" << std::endl;
-  std::string file = filePath + ".mphlexr";
-  std::FILE* pFile = std::fopen(file.c_str() , "r");
-  m_hash.Load(pFile);
-  m_scoreTree = new CanonicalHuffman<float>(pFile);
+void LexicalReorderingTableCompact::Load(std::string filePath)
+{  
+  std::FILE* pFile = std::fopen(filePath.c_str(), "r");
+  if(m_inMemory)
+    m_hash.Load(pFile);
+  else
+    m_hash.LoadIndex(pFile);
+  
+  std::fread(&m_numScoreComponent, sizeof(m_numScoreComponent), 1, pFile);
+  std::fread(&m_multipleScoreTrees, sizeof(m_multipleScoreTrees), 1, pFile);
+  
+  if(m_multipleScoreTrees)
+  {
+    m_scoreTrees.resize(m_numScoreComponent);
+    for(size_t i = 0; i < m_numScoreComponent; i++)
+      m_scoreTrees[i] = new CanonicalHuffman<float>(pFile);
+  }
+  else
+  {
+    m_scoreTrees.resize(1);
+    m_scoreTrees[0] = new CanonicalHuffman<float>(pFile);
+  }
   
   if(m_inMemory)
-    m_scoresMemory.load(pFile);
+    m_scoresMemory.load(pFile, false);
   else
-    m_scoresMapped.load(pFile);
-  
-  std::fclose(pFile);
+    m_scoresMapped.load(pFile, true);
 }
 
 }

@@ -50,15 +50,18 @@ void auxAppend(IPhrase& head, const IPhrase& tail)
 LexicalReorderingTable* LexicalReorderingTable::LoadAvailable(const std::string& filePath, const FactorList& f_factors, const FactorList& e_factors, const FactorList& c_factors)
 {
   //decide use Tree or Memory table
-  if(FileExists(filePath+".mphlexr")) {
+  if(filePath.substr(filePath.size()-8, 8) == ".minlexr" && FileExists(filePath))
+  {
     //there exists a compact binary version use that
     return new LexicalReorderingTableCompact(filePath, f_factors, e_factors, c_factors);
   }
-  else if(FileExists(filePath+".binlexr.idx")) {
+  else if(FileExists(filePath+".binlexr.idx"))
+  {
     //there exists a binary version use that
     return new LexicalReorderingTableTree(filePath, f_factors, e_factors, c_factors);
   } 
-  else {
+  else
+  {
     //use plain memory
     return new LexicalReorderingTableMemory(filePath, f_factors, e_factors, c_factors);
   }

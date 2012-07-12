@@ -48,6 +48,7 @@ protected:
   friend class PhraseDecoder;
 
   PhraseTableImplementation m_implementation;
+  bool m_inMemory;
   
   typedef std::map<Phrase, TargetPhraseCollection*> PhraseCache;
 #ifdef WITH_THREADS
@@ -57,9 +58,6 @@ protected:
   typedef PhraseCache SentenceCache;
 #endif
   SentenceCache m_sentenceCache;
-  
-  size_t m_orderBits; 
-  size_t m_fingerPrintBits;
   
   BlockHashIndex m_hash;
   PhraseDecoder* m_phraseDecoder;
@@ -80,8 +78,8 @@ public:
                                PhraseDictionaryFeature* feature)
     : PhraseDictionary(numScoreComponent, feature),
       m_implementation(implementation),
-      m_orderBits(10), m_fingerPrintBits(16),
-      m_hash(m_orderBits, m_fingerPrintBits),
+      m_inMemory(StaticData::Instance().UseMinphrInMemory()),
+      m_hash(10, 16),
       m_phraseDecoder(0)
   {}
     

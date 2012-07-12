@@ -58,8 +58,6 @@ bool PhraseDictionaryCompact::Load(const std::vector<FactorType> &input
   m_weightWP = weightWP;
 
   std::string fullFilePath = filePath;
-  if (FileExists(filePath + ".mph"))
-      fullFilePath += ".mph";
 
   m_phraseDecoder = new PhraseDecoder(*this, m_input, m_output, m_feature,
                                   m_numScoreComponent, m_weight, m_weightWP,
@@ -68,22 +66,23 @@ bool PhraseDictionaryCompact::Load(const std::vector<FactorType> &input
   std::FILE* pFile = std::fopen(fullFilePath.c_str() , "r");
   
   size_t indexSize;
-  if(m_implementation == CompactDisk)
-    // Keep source phrase index on disk
-    indexSize = m_hash.LoadIndex(pFile);
-  else if(m_implementation == CompactMemory)
+  if(m_inMemory)
     // Load source phrase index into memory
     indexSize = m_hash.Load(pFile);
+  else
+    // Keep source phrase index on disk
+    indexSize = m_hash.LoadIndex(pFile);
+
   
   size_t coderSize = m_phraseDecoder->Load(pFile);
   
   size_t phraseSize;
-  if(m_implementation == CompactDisk)
-    // Keep target phrase collections on disk
-    phraseSize = m_targetPhrasesMapped.load(pFile, true);
-  else if(m_implementation == CompactMemory)
+  if(m_inMemory)
     // Load target phrase collections into memory
     phraseSize = m_targetPhrasesMemory.load(pFile, false);
+  else
+    // Keep target phrase collections on disk
+    phraseSize = m_targetPhrasesMapped.load(pFile, true);
   
   return indexSize && coderSize && phraseSize;    
 }
@@ -166,7 +165,7 @@ void PhraseDictionaryCompact::AddEquivPhrase(const Phrase &source,
                                              const TargetPhrase &targetPhrase) { }
 
 void PhraseDictionaryCompact::CleanUp() {
-  if(m_implementation == CompactDisk)
+  if(!m_inMemory)
     m_hash.KeepNLastRanges(0.01, 0.2);
     
   m_phraseDecoder->PruneCache();

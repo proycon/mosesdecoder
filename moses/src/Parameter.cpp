@@ -146,6 +146,10 @@ Parameter::Parameter()
   AddParam("alignment-output-file", "print output word alignments into given file");
   AddParam("sort-word-alignment", "Sort word alignments for more consistent display. 0=no sort (default), 1=target order");
   
+  // MJD: Compact phrase table and reordering table 
+  AddParam("minlexr-memory", "Load lexical reordering table in minlexr format into memory");
+  AddParam("minphr-memory", "Load phrase table in minphr format into memory");
+  
   // MJD: WIPO-specific parameter: special n-best list format
   AddParam("wipo-n-best", "use WIPO-specific n-best list format");
   
@@ -346,6 +350,7 @@ bool Parameter::Validate()
     ext.push_back(".gz");
     //prefix tree format
     ext.push_back(".binlexr.idx");
+
     noErrorFlag = FilesExist("distortion-file", 3, ext);
   }
   return noErrorFlag;

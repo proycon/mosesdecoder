@@ -209,10 +209,10 @@ TargetPhraseVectorPtr PhraseDecoder::CreateTargetPhraseCollection(const Phrase &
   {
     // Retrieve compressed and encoded target phrase collection  
     std::string encodedPhraseCollection;
-    if(m_phraseDictionary.m_implementation == CompactDisk)
-      encodedPhraseCollection = m_phraseDictionary.m_targetPhrasesMapped[sourcePhraseId];
-    else if(m_phraseDictionary.m_implementation == CompactMemory)
+    if(m_phraseDictionary.m_inMemory)
       encodedPhraseCollection = m_phraseDictionary.m_targetPhrasesMemory[sourcePhraseId];
+    else
+      encodedPhraseCollection = m_phraseDictionary.m_targetPhrasesMapped[sourcePhraseId];
     
     BitStream<> encodedBitStream(encodedPhraseCollection);
     if(m_coding == PREnc && bitsLeft)

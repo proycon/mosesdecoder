@@ -3,13 +3,71 @@
 namespace Moses {
 
 LexicalReorderingTableCreator::LexicalReorderingTableCreator(
-    std::string inPath, std::string outPath)
-    : m_inPath(inPath), m_outPath(outPath), m_separator(" ||| "),
-      m_threads(8), m_hash(10, 16)
+  std::string inPath, std::string outPath, size_t numScoreComponent,
+  size_t orderBits, size_t fingerPrintBits, bool multipleScoreTrees,
+  size_t quantize
+#ifdef WITH_THREADS
+  , size_t threads
+#endif
+  )
+  : m_inPath(inPath), m_outPath(outPath), m_numScoreComponent(numScoreComponent),
+  m_orderBits(orderBits), m_fingerPrintBits(fingerPrintBits), 
+  m_multipleScoreTrees(multipleScoreTrees), m_quantize(quantize),
+  m_separator(" ||| "), m_hash(m_orderBits, m_fingerPrintBits),
+  m_lastFlushedLine(-1)
+#ifdef WITH_THREADS  
+  , m_threads(threads)
+#endif
 {
+
+  m_scoreCounters.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
+  for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
+      it != m_scoreCounters.end(); it++)
+      *it = new ScoreCounter();
+  m_scoreTrees.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
+  
+  if(m_outPath.rfind(".mphlexr") != m_outPath.size() - 8)
+    m_outPath += ".mphlexr";
+    
+  PrintInfo();
+    
+  m_outFile = std::fopen(m_outPath.c_str(), "w");
+  
+  std::cerr << "Pass 1/2: Creating phrase index + Counting scores" << std::endl;
+  m_hash.BeginSave(m_outFile); 
   EncodeScores();
+  
+  std::cerr << "Intermezzo: Calculating Huffman code sets" << std::endl;
+  CalcHuffmanCodes();
+  
+  std::cerr << "Pass 2/2: Compressing scores" << std::endl;
   CompressScores();
+  
+  std::cerr << "Saving to " << m_outPath << std::endl;
   Save();
+  std::cerr << "Done" << std::endl;
+  std::fclose(m_outFile);
+}
+
+void LexicalReorderingTableCreator::PrintInfo()
+{  
+  std::cerr << "Used options:" << std::endl;
+  std::cerr << "\tText reordering table will be read from: " << m_inPath << std::endl;
+  std::cerr << "\tOuput reordering table will be written to: " << m_outPath << std::endl;
+  std::cerr << "\tStep size for source landmark phrases: 2^" << m_orderBits << "=" << (1ul << m_orderBits) << std::endl;
+  std::cerr << "\tPhrase fingerprint size: " << m_fingerPrintBits << " bits / P(fp)=" << (float(1)/(1ul << m_fingerPrintBits)) << std::endl;
+  std::cerr << "\tNumber of score components in reordering table: " << m_numScoreComponent << std::endl;    
+  std::cerr << "\tSingle Huffman code set for score components: " << (m_multipleScoreTrees ? "no" : "yes") << std::endl;    
+  std::cerr << "\tUsing score quantization: ";
+  if(m_quantize)
+    std::cerr << m_quantize << " best" << std::endl;
+  else
+    std::cerr << "no" << std::endl;
+  
+#ifdef WITH_THREADS    
+  std::cerr << "\tRunning with " << m_threads << " threads" << std::endl;
+#endif
+  std::cerr << std::endl;
 }
 
 void LexicalReorderingTableCreator::EncodeScores()
@@ -32,12 +90,30 @@ void LexicalReorderingTableCreator::EncodeScores()
   FlushEncodedQueue(true);
 }
 
+void LexicalReorderingTableCreator::CalcHuffmanCodes()
+{   
+  std::vector<ScoreTree*>::iterator treeIt = m_scoreTrees.begin();
+  for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
+    it != m_scoreCounters.end(); it++)
+  {
+    if(m_quantize)
+        (*it)->Quantize(m_quantize);
+    
+    std::cerr << "\tCreating Huffman codes for " << (*it)->Size()
+        << " scores" << std::endl;
+    
+    *treeIt = new ScoreTree((*it)->Begin(), (*it)->End());
+    treeIt++;
+  }
+  std::cerr << std::endl;
+}
+
 void LexicalReorderingTableCreator::CompressScores()
 {
 #ifdef WITH_THREADS
   boost::thread_group threads;
   for (size_t i = 0; i < m_threads; ++i) {
-    CompressionTaskReordering* ct = new CompressionTaskReordering(m_scores, *this);    
+    CompressionTaskReordering* ct = new CompressionTaskReordering(m_encodedScores, *this);    
     threads.create_thread(*ct);
   }
   threads.join_all();
@@ -50,35 +126,147 @@ void LexicalReorderingTableCreator::CompressScores()
 }
 
 void LexicalReorderingTableCreator::Save()
-{
+{  
+  std::fwrite(&m_numScoreComponent, sizeof(m_numScoreComponent), 1, m_outFile);
+  std::fwrite(&m_multipleScoreTrees, sizeof(m_multipleScoreTrees), 1, m_outFile);
+  for(size_t i = 0; i < m_scoreTrees.size(); i++)
+    m_scoreTrees[i]->Save(m_outFile);
   
+  m_compressedScores.save(m_outFile);
+}
+
+std::string LexicalReorderingTableCreator::MakeSourceTargetKey(std::string &source, std::string &target)
+{
+    return source + m_separator + target + m_separator;
 }
 
 std::string LexicalReorderingTableCreator::EncodeLine(std::vector<std::string>& tokens)
 {
+  std::string scoresString = tokens[2];
+  std::stringstream scoresStream;
   
+  std::vector<float> scores;
+  Tokenize<float>(scores, scoresString);
+  
+  size_t c = 0;
+  float score;
+  while(c < m_numScoreComponent)
+  {
+    score = scores[c];
+    score = FloorScore(TransformScore(score));
+    scoresStream.write((char*)&score, sizeof(score));
+    
+    m_scoreCounters[m_multipleScoreTrees ? c : 0]->Increase(score);
+    c++;
+  }
+  
+  return scoresStream.str();
 }
 
 void LexicalReorderingTableCreator::AddEncodedLine(PackedItem& pi)
 {
-  
+  m_queue.push(pi);
 }
 
 void LexicalReorderingTableCreator::FlushEncodedQueue(bool force) {
+  if(force || m_queue.size() > 10000)
+  {
+    while(!m_queue.empty() && m_lastFlushedLine + 1 == m_queue.top().GetLine())
+    {
+      PackedItem pi = m_queue.top();
+      m_queue.pop();
+      m_lastFlushedLine++;
+      
+      m_lastRange.push_back(pi.GetSrc());    
+      m_encodedScores.push_back(pi.GetTrg());
+      
+      if((pi.GetLine()+1) % 100000 == 0)
+          std::cerr << ".";
+      if((pi.GetLine()+1) % 5000000 == 0)
+          std::cerr << "[" << (pi.GetLine()+1) << "]" << std::endl;
+          
+      if(m_lastRange.size() == (1ul << m_orderBits))
+      {
+        m_hash.AddRange(m_lastRange);
+        m_hash.SaveLastRange();
+        m_hash.DropLastRange();
+        m_lastRange.clear();
+      }
+    }
+  }
   
+  if(force)
+  {
+    m_lastFlushedLine = -1;
+
+    m_hash.AddRange(m_lastRange);
+    m_lastRange.clear();
+    
+#ifdef WITH_THREADS
+    m_hash.WaitAll();
+#endif
+
+    m_hash.SaveLastRange();
+    m_hash.DropLastRange();
+    m_hash.FinalizeSave();
+
+    std::cerr << std::endl << std::endl;
+  }
 }
 
-std::string LexicalReorderingTableCreator::CompressEncodedCollection(std::string encodedCollection) {
+std::string LexicalReorderingTableCreator::CompressEncodedScores(std::string &encodedScores) {
+  std::stringstream encodedScoresStream(encodedScores);
+  encodedScoresStream.unsetf(std::ios::skipws);
   
+  std::string compressedScores;
+  BitStream<> compressedScoresStream(compressedScores);
+  
+  size_t currScore = 0;
+  float score;
+  encodedScoresStream.read((char*) &score, sizeof(score));
+  
+  while(encodedScoresStream) {
+    size_t index = currScore % m_scoreTrees.size();
+    
+    if(m_quantize)
+      score = m_scoreCounters[index]->LowerBound(score);
+    
+    compressedScoresStream.PutCode(m_scoreTrees[index]->Encode(score));
+    encodedScoresStream.read((char*) &score, sizeof(score));
+    currScore++;
+  }
+  
+  return compressedScores;
 }
 
-void LexicalReorderingTableCreator::AddCompressedCollection(PackedItem& pi) {
-  
+void LexicalReorderingTableCreator::AddCompressedScores(PackedItem& pi) {
+  m_queue.push(pi); 
 }
 
 void LexicalReorderingTableCreator::FlushCompressedQueue(bool force)
 {  
-
+  if(force || m_queue.size() > 10000)
+  {
+    while(!m_queue.empty() && m_lastFlushedLine + 1 == m_queue.top().GetLine())
+    {
+      PackedItem pi = m_queue.top();
+      m_queue.pop();
+      m_lastFlushedLine++;
+          
+      m_compressedScores.push_back(pi.GetTrg());
+      
+      if((pi.GetLine()+1) % 100000 == 0)
+          std::cerr << ".";
+      if((pi.GetLine()+1) % 5000000 == 0)
+          std::cerr << "[" << (pi.GetLine()+1) << "]" << std::endl;
+    }
+  }
+  
+  if(force)
+  {
+    m_lastFlushedLine = -1;
+    std::cerr << std::endl << std::endl;
+  }
 }
 
 //****************************************************************************//
@@ -123,7 +311,8 @@ void EncodingTaskReordering::operator()()
       
       std::string encodedLine = m_creator.EncodeLine(tokens);
       
-      PackedItem packedItem(lineNum + i, tokens[0], encodedLine, i);
+      PackedItem packedItem(lineNum + i, m_creator.MakeSourceTargetKey(tokens[0], tokens[1]),
+                            encodedLine, i);
       result.push_back(packedItem);
     }
     lines.clear();
@@ -154,7 +343,7 @@ void EncodingTaskReordering::operator()()
 
 //****************************************************************************//
 
-size_t CompressionTaskReordering::m_collectionNum = 0;
+size_t CompressionTaskReordering::m_scoresNum = 0;
 #ifdef WITH_THREADS
 boost::mutex CompressionTaskReordering::m_mutex;
 #endif
@@ -162,156 +351,38 @@ boost::mutex CompressionTaskReordering::m_mutex;
 CompressionTaskReordering::CompressionTaskReordering(StringVector<unsigned char, unsigned long,
                               MmapAllocator>& encodedScores,
                               LexicalReorderingTableCreator& creator)
-  : m_encodedScores(encodedScores), m_creator(creator) {}
+  : m_encodedScores(encodedScores), m_creator(creator)
+{ }
   
 void CompressionTaskReordering::operator()()
 {
-  size_t collectionNum;
+  size_t scoresNum;
   {
 #ifdef WITH_THREADS
     boost::mutex::scoped_lock lock(m_mutex);
 #endif
-    collectionNum = m_collectionNum;
-    m_collectionNum++;
+    scoresNum = m_scoresNum;
+    m_scoresNum++;
   }
   
-  while(collectionNum < m_encodedScores.size())
+  while(scoresNum < m_encodedScores.size())
   {
-    std::string collection = m_encodedScores[collectionNum];
-    std::string compressedCollection
-        = m_creator.CompressEncodedCollection(collection);
+    std::string scores = m_encodedScores[scoresNum];
+    std::string compressedScores
+        = m_creator.CompressEncodedScores(scores);
 
     std::string dummy;
-    PackedItem packedItem(collectionNum, dummy, compressedCollection, 0);
+    PackedItem packedItem(scoresNum, dummy, compressedScores, 0);
 
 #ifdef WITH_THREADS
     boost::mutex::scoped_lock lock(m_mutex);
 #endif
-    m_creator.AddCompressedCollection(packedItem);
+    m_creator.AddCompressedScores(packedItem);
     m_creator.FlushCompressedQueue();
     
-    collectionNum = m_collectionNum;  
-    m_collectionNum++;    
+    scoresNum = m_scoresNum;  
+    m_scoresNum++;    
   }
 }
 
-/*
- 
- //std::vector<float> LexicalReorderingTableMemoryHashed::UnpackScores(std::string& scoreString) {
-//  std::stringstream ss(scoreString);
-//  std::vector<float> p;
-//  
-//  float score;
-//  while(ss.read((char*) &score, sizeof(score))) {
-//    p.push_back(score);
-//  }
-//  std::transform(p.begin(),p.end(),p.begin(),TransformScore);
-//  std::transform(p.begin(),p.end(),p.begin(),FloorScore);
-//  
-//  return p;
-//}
-
-void  LexicalReorderingTableMemoryCompact::LoadText(const std::string& filePath)
-{
-  std::vector<char*> tempScores;
-  std::map<float, size_t> frequencies;
-  
-  StringVector<unsigned char, unsigned long, MmapAllocator> phrases;
-  
-  std::cerr << "Reading in reordering table" << std::endl;
-  
-  std::string fileName = filePath;
-  if(!FileExists(fileName) && FileExists(fileName+".gz")) {
-    fileName += ".gz";
-  }
-  InputFileStream file(fileName);
-  std::string line(""), key("");
-  int numScores = -1;
-  size_t line_num = 0;
-  while(!getline(file, line).eof()) {
-    ++line_num;
-    if(line_num % 100000 == 0)
-      std::cerr << ".";
-    if(line_num % 5000000 == 0)
-      std::cerr << "[" << line_num << "]" << std::endl;
-      
-    std::vector<std::string> tokens = TokenizeMultiCharSeparator(line, "|||");
-    int t = 0 ;
-    std::string f(""),e(""),c("");
-
-    if(!m_FactorsF.empty()) {
-      //there should be something for f
-      f = auxClearString(tokens.at(t));
-      ++t;
-    }
-    if(!m_FactorsE.empty()) {
-      //there should be something for e
-      e = auxClearString(tokens.at(t));
-      ++t;
-    }
-    if(!m_FactorsC.empty()) {
-      //there should be something for c
-      c = auxClearString(tokens.at(t));
-      ++t;
-    }
-    //last token are the probs
-    std::vector<float> p = Scan<float>(Tokenize(tokens.at(t)));
-    //sanity check: all lines must have equall number of probs
-    if(-1 == numScores) {
-      numScores = (int)p.size(); //set in first line
-    }
-    if((int)p.size() != numScores) {
-      TRACE_ERR( "found inconsistent number of probabilities... found " << p.size() << " expected " << numScores << std::endl);
-      exit(0);
-    }
-        
-    phrases.push_back(MakeKey(f,e,c));
-    std::transform(p.begin(), p.end(), p.begin(), TransformScore);
-    std::transform(p.begin(), p.end(), p.begin(), FloorScore);
-    
-    for(std::vector<float>::iterator it = p.begin(); it != p.end(); it++)
-      frequencies[*it]++;
-    
-    char* cstring = new char[numScores * sizeof(float)];
-    std::memcpy(cstring, &p[0], numScores * sizeof(float));
-    tempScores.push_back(cstring);
-  }
-  std::cerr << std::endl;
-  
-  //m_hash.Create(phrases);
-  //
-  //{
-  //  StringVector<unsigned char, unsigned long, MmapAllocator> tPhrases;
-  //  phrases.swap(tPhrases);
-  //}
-
-  // TODO!
-  //std::cerr << "Creating Huffman compression tree for " << frequencies.size() << " symbols" << std::endl;
-  //m_tree = new Hufftree<int, float>(frequencies.begin(), frequencies.end());
-  //
-  //double freq_sum = 0, len_sum = 0;
-  //for(std::map<float, size_t>::iterator it = frequencies.begin(); it != frequencies.end(); it++) {
-  //  len_sum  += it->second * m_tree->encode(it->first).size();
-  //  freq_sum += it->second;
-  //}
-  //std::cerr << "Average no. of bits per score: " << (len_sum/freq_sum) << std::endl;
-  //std::cerr << "Compressing target phrases" << std::endl;
-  //for(size_t i = 0; i < m_hash.GetSize(); i++) {
-  //  if((i+1) % 100000 == 0)
-  //    std::cerr << ".";
-  //  if((i+1) % 5000000 == 0)
-  //    std::cerr << "[" << i+1 << "]" << std::endl;
-  //    
-  //  std::vector<float> p(numScores, 0);
-  //  char* cstring = tempScores[i];
-  //  std::memcpy(&p[0], cstring, numScores * sizeof(float));
-  //  delete[] cstring;
-  //  
-  //  std::string compressedScores = m_tree->encode(p.begin(), p.end());
-  //  m_scores.push_back(compressedScores);
-  //}
-  std::cerr << std::endl;
-}
-
- */
 }

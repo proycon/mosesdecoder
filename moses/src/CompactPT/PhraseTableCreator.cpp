@@ -28,99 +28,98 @@ PhraseTableCreator::PhraseTableCreator(std::string inPath,
     m_useAlignmentInfo(useAlignmentInfo),
     m_multipleScoreTrees(multipleScoreTrees),
     m_quantize(quantize), m_maxRank(maxRank),
-#ifdef WITH_THREADS
+  #ifdef WITH_THREADS
     m_threads(threads),
     m_srcHash(m_orderBits, m_fingerPrintBits, 1),
     m_rnkHash(10, 24, m_threads),
-#else
+  #else
     m_srcHash(m_orderBits, m_fingerPrintBits),
     m_rnkHash(m_orderBits, m_fingerPrintBits),
-#endif
+  #endif
     m_maxPhraseLength(0),
     m_lastFlushedLine(-1), m_lastFlushedSourceNum(0),
     m_lastFlushedSourcePhrase("")
 {
-    
-    PrintInfo();
-    
-    AddTargetSymbolId(m_phraseStopSymbol);
-    
-    size_t cur_pass = 1;
-    size_t all_passes = 2;
-    if(m_coding == PREnc)
-        all_passes = 3;
-    
-    m_scoreCounters.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
-    for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
-        it != m_scoreCounters.end(); it++)
-        *it = new ScoreCounter();
-    m_scoreTrees.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
-    
-    // 0th pass
-    if(m_coding == REnc)
-    {
-        size_t found = inPath.find_last_of("/\\");
-        std::string path = inPath.substr(0, found);
-        LoadLexicalTable(path + "/lex.f2e");
-    }
-    else if(m_coding == PREnc)
-    {
-        std::cerr << "Pass " << cur_pass << "/" << all_passes << ": Creating hash function for rank assignment" << std::endl;
-        cur_pass++;
-        CreateRankHash();
-    }
-    
-    // 1st pass
-    std::cerr << "Pass " << cur_pass << "/" << all_passes << ": Creating source phrase index + Encoding target phrases" << std::endl;
-    m_srcHash.BeginSave(m_outFile);   
-    EncodeTargetPhrases();
-    
+  PrintInfo();
+  
+  AddTargetSymbolId(m_phraseStopSymbol);
+  
+  size_t cur_pass = 1;
+  size_t all_passes = 2;
+  if(m_coding == PREnc)
+    all_passes = 3;
+  
+  m_scoreCounters.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
+  for(std::vector<ScoreCounter*>::iterator it = m_scoreCounters.begin();
+    it != m_scoreCounters.end(); it++)
+    *it = new ScoreCounter();
+  m_scoreTrees.resize(m_multipleScoreTrees ? m_numScoreComponent : 1);
+  
+  // 0th pass
+  if(m_coding == REnc)
+  {
+    size_t found = inPath.find_last_of("/\\");
+    std::string path = inPath.substr(0, found);
+    LoadLexicalTable(path + "/lex.f2e");
+  }
+  else if(m_coding == PREnc)
+  {
+    std::cerr << "Pass " << cur_pass << "/" << all_passes << ": Creating hash function for rank assignment" << std::endl;
     cur_pass++;
-    
-    std::cerr << "Intermezzo: Calculating Huffman code sets" << std::endl;
-    CalcHuffmanCodes();
-    
-    // 2nd pass
-    std::cerr << "Pass " << cur_pass << "/" << all_passes << ": Compressing target phrases" << std::endl;
-    CompressTargetPhrases();
-    
-    std::cerr << "Saving to " << m_outPath << std::endl;
-    Save();
-    std::cerr << "Done" << std::endl;
-    std::fclose(m_outFile);
+    CreateRankHash();
+  }
+  
+  // 1st pass
+  std::cerr << "Pass " << cur_pass << "/" << all_passes << ": Creating source phrase index + Encoding target phrases" << std::endl;
+  m_srcHash.BeginSave(m_outFile);   
+  EncodeTargetPhrases();
+  
+  cur_pass++;
+  
+  std::cerr << "Intermezzo: Calculating Huffman code sets" << std::endl;
+  CalcHuffmanCodes();
+  
+  // 2nd pass
+  std::cerr << "Pass " << cur_pass << "/" << all_passes << ": Compressing target phrases" << std::endl;
+  CompressTargetPhrases();
+  
+  std::cerr << "Saving to " << m_outPath << std::endl;
+  Save();
+  std::cerr << "Done" << std::endl;
+  std::fclose(m_outFile);
 }
     
 void PhraseTableCreator::PrintInfo()
 {
-    std::string encodings[3] = {"Huffman", "Huffman + REnc", "Huffman + PREnc"};
-    
-    std::cerr << "Used options:" << std::endl;
-    std::cerr << "\tText phrase table will be read from: " << m_inPath << std::endl;
-    std::cerr << "\tOuput phrase table will be written to: " << m_outPath << std::endl;
-    std::cerr << "\tStep size for source landmark phrases: 2^" << m_orderBits << "=" << (1ul << m_orderBits) << std::endl;
-    std::cerr << "\tSource phrase fingerprint size: " << m_fingerPrintBits << " bits / P(fp)=" << (float(1)/(1ul << m_fingerPrintBits)) << std::endl;
-    std::cerr << "\tSelected target phrase encoding: " << encodings[m_coding] << std::endl;
-    if(m_coding == PREnc)
-    {
-        std::cerr << "\tMaxiumum allowed rank for PREnc: ";
-        if(m_maxRank)
-            std::cerr << "unlimited" << std::endl;
-        else
-            std::cerr << m_maxRank << std::endl;    
-    }
-    std::cerr << "\tNumber of score components in phrase table: " << m_numScoreComponent << std::endl;    
-    std::cerr << "\tSingle Huffman code set for score components: " << (m_multipleScoreTrees ? "no" : "yes") << std::endl;    
-    std::cerr << "\tUsing score quantization: ";
-    if(m_quantize)
-        std::cerr << m_quantize << " best" << std::endl;
+  std::string encodings[3] = {"Huffman", "Huffman + REnc", "Huffman + PREnc"};
+  
+  std::cerr << "Used options:" << std::endl;
+  std::cerr << "\tText phrase table will be read from: " << m_inPath << std::endl;
+  std::cerr << "\tOuput phrase table will be written to: " << m_outPath << std::endl;
+  std::cerr << "\tStep size for source landmark phrases: 2^" << m_orderBits << "=" << (1ul << m_orderBits) << std::endl;
+  std::cerr << "\tSource phrase fingerprint size: " << m_fingerPrintBits << " bits / P(fp)=" << (float(1)/(1ul << m_fingerPrintBits)) << std::endl;
+  std::cerr << "\tSelected target phrase encoding: " << encodings[m_coding] << std::endl;
+  if(m_coding == PREnc)
+  {
+    std::cerr << "\tMaxiumum allowed rank for PREnc: ";
+    if(m_maxRank)
+      std::cerr << "unlimited" << std::endl;
     else
-        std::cerr << "no" << std::endl;
-    std::cerr << "\tExplicitly included alignment information: " << (m_useAlignmentInfo ? "yes" : "no") << std::endl;    
-    
+      std::cerr << m_maxRank << std::endl;    
+  }
+  std::cerr << "\tNumber of score components in phrase table: " << m_numScoreComponent << std::endl;    
+  std::cerr << "\tSingle Huffman code set for score components: " << (m_multipleScoreTrees ? "no" : "yes") << std::endl;    
+  std::cerr << "\tUsing score quantization: ";
+  if(m_quantize)
+    std::cerr << m_quantize << " best" << std::endl;
+  else
+    std::cerr << "no" << std::endl;
+  std::cerr << "\tExplicitly included alignment information: " << (m_useAlignmentInfo ? "yes" : "no") << std::endl;    
+  
 #ifdef WITH_THREADS    
-    std::cerr << "\tRunning with " << m_threads << " threads" << std::endl;
+  std::cerr << "\tRunning with " << m_threads << " threads" << std::endl;
 #endif
-    std::cerr << std::endl;
+  std::cerr << std::endl;
 }
     
 void PhraseTableCreator::Save()

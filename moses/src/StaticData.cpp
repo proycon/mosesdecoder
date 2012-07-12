@@ -155,7 +155,7 @@ m_cubePruningPopLimit(s.m_cubePruningPopLimit), m_cubePruningDiversity(s.m_cubeP
 m_ruleLimit(s.m_ruleLimit), m_inputDefaultNonTerminal(s.m_inputDefaultNonTerminal),
 m_sourceLabelOverlap(s.m_sourceLabelOverlap), m_unknownLHS(s.m_unknownLHS),
 m_labeledNBestList(s.m_labeledNBestList), m_nBestIncludesAlignment(s.m_nBestIncludesAlignment),
-m_nBestWipo(s.m_nBestWipo)
+m_nBestWipo(s.m_nBestWipo), m_minphrMemory(s.m_minphrMemory), m_minlexrMemory(s.m_minlexrMemory)
 { 
   m_parameter = new Parameter(*(s.m_parameter));
   
@@ -357,6 +357,10 @@ bool StaticData::LoadData(Parameter *parameter)
   SetBooleanParameter( &m_PrintAlignmentInfoNbest, "print-alignment-info-in-n-best", false );
   // MJD: Activate WIPO-specific n-best list format, probably useless for anyone else.
   SetBooleanParameter( &m_nBestWipo, "wipo-n-best", false );
+  
+  // MJD: compact phrase table and reordering model
+  SetBooleanParameter( &m_minphrMemory, "minphr-memory", false );
+  SetBooleanParameter( &m_minlexrMemory, "minlexr-memory", false );
   
   SetBooleanParameter( &m_outputHypoScore, "output-hypo-score", false );
 
