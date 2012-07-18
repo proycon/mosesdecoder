@@ -19,6 +19,15 @@ class ConsistantPhrases
     {
       bool operator()(Phrase a, Phrase b)
       {
+        if(a.j < b.j)
+          return true;
+        if(a.j == b.j && a.n > b.n)
+          return true;
+        if(a.j == b.j && a.n == b.n && a.i < b.i)
+          return true;
+        if(a.j == b.j && a.n == b.n && a.i == b.i && a.m > b.m)
+          return true;
+        /*
         if(a.n > b.n)
           return true;
         if(a.n == b.n && a.j < b.j)
@@ -27,7 +36,7 @@ class ConsistantPhrases
           return true;
         if(a.n == b.n && a.j == b.j && a.m == b.m && a.i < b.i)
           return true;
-        
+        */
         return false;
       }
     };

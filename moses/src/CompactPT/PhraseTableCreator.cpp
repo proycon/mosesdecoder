@@ -102,7 +102,7 @@ void PhraseTableCreator::PrintInfo()
   if(m_coding == PREnc)
   {
     std::cerr << "\tMaxiumum allowed rank for PREnc: ";
-    if(m_maxRank)
+    if(!m_maxRank)
       std::cerr << "unlimited" << std::endl;
     else
       std::cerr << m_maxRank << std::endl;    
