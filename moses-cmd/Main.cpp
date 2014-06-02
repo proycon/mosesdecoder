@@ -162,6 +162,7 @@ void OutputFeatureWeightsForHypergraph(std::ostream &outputSearchGraphStream)
 
 } //namespace
 
+
 /** main function of the command line version of the decoder **/
 int main(int argc, char** argv)
 {
