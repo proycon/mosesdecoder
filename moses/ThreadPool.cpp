@@ -56,7 +56,7 @@ void ThreadPool::Execute()
     //Execute job
     if (task) {
       task->Run();
-      if (task->DeleteAfterExecution()) {
+      if ((task) && (task->DeleteAfterExecution())) {
         delete task;
       }
     }
