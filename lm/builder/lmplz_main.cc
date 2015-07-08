@@ -1,4 +1,6 @@
+#include "lm/builder/output.hh"
 #include "lm/builder/pipeline.hh"
+#include "lm/builder/print.hh"
 #include "lm/lm_exception.hh"
 #include "util/file.hh"
 #include "util/file_piece.hh"
@@ -51,7 +53,6 @@ std::vector<uint64_t> ParsePruning(const std::vector<std::string> &param, std::s
   // throw if each n-gram order has not  threshold specified
   UTIL_THROW_IF(prune_thresholds.size() > order, util::Exception, "You specified pruning thresholds for orders 1 through " << prune_thresholds.size() << " but the model only has order " << order);
   // threshold for unigram can only be 0 (no pruning)
-  UTIL_THROW_IF(prune_thresholds[0] != 0, util::Exception, "Unigram pruning is not implemented, so the first pruning threshold must be 0.");
 
   // check if threshold are not in decreasing order
   uint64_t lower_threshold = 0;
@@ -86,13 +87,14 @@ int main(int argc, char *argv[]) {
     po::options_description options("Language model building options");
     lm::builder::PipelineConfig pipeline;
 
-    std::string text, arpa;
+    std::string text, intermediate, arpa;
     std::vector<std::string> pruning;
     std::vector<std::string> discount_fallback;
     std::vector<std::string> discount_fallback_default;
     discount_fallback_default.push_back("0.5");
     discount_fallback_default.push_back("1");
     discount_fallback_default.push_back("1.5");
+    bool verbose_header;
 
     options.add_options()
       ("help,h", po::bool_switch(), "Show this help message")
@@ -111,17 +113,20 @@ int main(int argc, char *argv[]) {
       ("vocab_estimate", po::value<lm::WordIndex>(&pipeline.vocab_estimate)->default_value(1000000), "Assume this vocabulary size for purposes of calculating memory in step 1 (corpus count) and pre-sizing the hash table")
       ("vocab_file", po::value<std::string>(&pipeline.vocab_file)->default_value(""), "Location to write a file containing the unique vocabulary strings delimited by null bytes")
       ("vocab_pad", po::value<uint64_t>(&pipeline.vocab_size_for_unk)->default_value(0), "If the vocabulary is smaller than this value, pad with <unk> to reach this size. Requires --interpolate_unigrams")
-      ("verbose_header", po::bool_switch(&pipeline.verbose_header), "Add a verbose header to the ARPA file that includes information such as token count, smoothing type, etc.")
+      ("verbose_header", po::bool_switch(&verbose_header), "Add a verbose header to the ARPA file that includes information such as token count, smoothing type, etc.")
       ("text", po::value<std::string>(&text), "Read text from a file instead of stdin")
       ("arpa", po::value<std::string>(&arpa), "Write ARPA to a file instead of stdout")
+      ("intermediate", po::value<std::string>(&intermediate), "Write ngrams to an intermediate file.  Turns off ARPA output (which can be reactivated by --arpa file).  Forces --renumber on.  Implicitly makes --vocab_file be the provided name + .vocab.")
+      ("renumber", po::bool_switch(&pipeline.renumber_vocabulary), "Rrenumber the vocabulary identifiers so that they are monotone with the hash of each string.  This is consistent with the ordering used by the trie data structure.")
       ("collapse_values", po::bool_switch(&pipeline.output_q), "Collapse probability and backoff into a single value, q that yields the same sentence-level probabilities.  See http://kheafield.com/professional/edinburgh/rest_paper.pdf for more details, including a proof.")
-      ("prune", po::value<std::vector<std::string> >(&pruning)->multitoken(), "Prune n-grams with count less than or equal to the given threshold.  Specify one value for each order i.e. 0 0 1 to prune singleton trigrams and above.  The sequence of values must be non-decreasing and the last value applies to any remaining orders.  Unigram pruning is not implemented, so the first value must be zero.  Default is to not prune, which is equivalent to --prune 0.")
+      ("prune", po::value<std::vector<std::string> >(&pruning)->multitoken(), "Prune n-grams with count less than or equal to the given threshold.  Specify one value for each order i.e. 0 0 1 to prune singleton trigrams and above.  The sequence of values must be non-decreasing and the last value applies to any remaining orders. Default is to not prune, which is equivalent to --prune 0.")
+      ("limit_vocab_file", po::value<std::string>(&pipeline.prune_vocab_file)->default_value(""), "Read allowed vocabulary separated by whitespace. N-grams that contain vocabulary items not in this list will be pruned. Can be combined with --prune arg")
       ("discount_fallback", po::value<std::vector<std::string> >(&discount_fallback)->multitoken()->implicit_value(discount_fallback_default, "0.5 1 1.5"), "The closed-form estimate for Kneser-Ney discounts does not work without singletons or doubletons.  It can also fail if these values are out of range.  This option falls back to user-specified discounts when the closed-form estimate fails.  Note that this option is generally a bad idea: you should deduplicate your corpus instead.  However, class-based models need custom discounts because they lack singleton unigrams.  Provide up to three discounts (for adjusted counts 1, 2, and 3+), which will be applied to all orders where the closed-form estimates fail.");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, options), vm);
 
     if (argc == 1 || vm["help"].as<bool>()) {
-      std::cerr << 
+      std::cerr <<
         "Builds unpruned language models with modified Kneser-Ney smoothing.\n\n"
         "Please cite:\n"
         "@inproceedings{Heafield-estimate,\n"
@@ -144,7 +149,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "This machine has " << mem << " bytes of memory.\n\n";
       } else {
         std::cerr << "Unable to determine the amount of memory on this machine.\n\n";
-      } 
+      }
       std::cerr << options << std::endl;
       return 1;
     }
@@ -181,17 +186,25 @@ int main(int argc, char *argv[]) {
 
     // parse pruning thresholds.  These depend on order, so it is not done as a notifier.
     pipeline.prune_thresholds = ParsePruning(pruning, pipeline.order);
-    
+
+    if (!vm["limit_vocab_file"].as<std::string>().empty()) {
+      pipeline.prune_vocab = true;
+    }
+    else {
+      pipeline.prune_vocab = false;
+    }
+
     util::NormalizeTempPrefix(pipeline.sort.temp_prefix);
 
     lm::builder::InitialProbabilitiesConfig &initial = pipeline.initial_probs;
-    // TODO: evaluate options for these.  
+    // TODO: evaluate options for these.
     initial.adder_in.total_memory = 32768;
     initial.adder_in.block_count = 2;
     initial.adder_out.total_memory = 32768;
     initial.adder_out.block_count = 2;
     pipeline.read_backoffs = initial.adder_out;
 
+    // Read from stdin, write to stdout by default
     util::scoped_fd in(0), out(1);
     if (vm.count("text")) {
       in.reset(util::OpenReadOrThrow(text.c_str()));
@@ -200,9 +213,21 @@ int main(int argc, char *argv[]) {
       out.reset(util::CreateOrThrow(arpa.c_str()));
     }
 
-    // Read from stdin
     try {
-      lm::builder::Pipeline(pipeline, in.release(), out.release());
+      bool writing_intermediate = vm.count("intermediate");
+      if (writing_intermediate) {
+        pipeline.renumber_vocabulary = true;
+        if (!pipeline.vocab_file.empty()) {
+          std::cerr << "--intermediate and --vocab_file are incompatible because --intermediate already makes a vocab file." << std::endl;
+          return 1;
+        }
+        pipeline.vocab_file = intermediate + ".vocab";
+      }
+      lm::builder::Output output(writing_intermediate ? intermediate : pipeline.sort.temp_prefix, writing_intermediate);
+      if (!writing_intermediate || vm.count("arpa")) {
+        output.Add(new lm::builder::PrintARPA(out.release(), verbose_header));
+      }
+      lm::builder::Pipeline(pipeline, in.release(), output);
     } catch (const util::MallocException &e) {
       std::cerr << e.what() << std::endl;
       std::cerr << "Try rerunning with a more conservative -S setting than " << vm["memory"].as<std::string>() << std::endl;

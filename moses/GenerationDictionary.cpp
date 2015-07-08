@@ -27,7 +27,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "Util.h"
 #include "InputFileStream.h"
 #include "StaticData.h"
-#include "UserMessage.h"
 #include "util/exception.hh"
 
 using namespace std;
@@ -37,7 +36,7 @@ namespace Moses
 std::vector<GenerationDictionary*> GenerationDictionary::s_staticColl;
 
 GenerationDictionary::GenerationDictionary(const std::string &line)
-  : DecodeFeature(line)
+  : DecodeFeature(line, true)
 {
   s_staticColl.push_back(this);
 

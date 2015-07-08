@@ -28,7 +28,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "moses/StaticData.h"
 #include "moses/TargetPhrase.h"
 #include "moses/Util.h"
-#include "moses/UserMessage.h"
 
 #ifdef WITH_DLIB
 #include <dlib/optimization.h>
@@ -86,7 +85,7 @@ public:
 #endif
   // functions below required by base class
   virtual const TargetPhraseCollection* GetTargetPhraseCollectionLEGACY(const Phrase& src) const;
-  virtual void InitializeForInput(InputType const&) {
+  virtual void InitializeForInput(ttasksptr const& ttask) {
     /* Don't do anything source specific here as this object is shared between threads.*/
   }
   ChartRuleLookupManager *CreateRuleLookupManager(const ChartParser &, const ChartCellCollectionBase&, std::size_t);

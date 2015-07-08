@@ -148,8 +148,8 @@ int OnlineRLM<T>::query(const wordID_t* IDs, int len)
       //markQueried(hpdItr);  // mark this event as "hit"
       value -= ((value & this->hitMask_) != 0) ? this->hitMask_ : 0; // check for previous hit marks
     } else {
-    	UTIL_THROW_IF2(filterIdx >= this->cells_,
-    			"Out of bound: " << filterIdx);
+      UTIL_THROW_IF2(filterIdx >= this->cells_,
+                     "Out of bound: " << filterIdx);
       //markQueried(filterIdx);
     }
   }
@@ -302,7 +302,8 @@ float OnlineRLM<T>::getProb(const wordID_t* ngram, int len,
     }
     while(num_fnd > 1) { // get lower order count
       //get sub-context of size one less than length found (exluding target)
-      if(((den_val = query(&ngram[len - num_fnd], num_fnd - 1)) > 0) &&
+      den_val = query(&ngram[len - num_fnd], num_fnd - 1);
+      if((den_val > 0) &&
           (den_val >= in[len - num_fnd]) && (in[len - num_fnd] > 0)) {
         break;
       } else --num_fnd; // else backoff to lower ngram order
@@ -341,7 +342,7 @@ const void* OnlineRLM<T>::getContext(const wordID_t* ngram, int len)
   int dummy(0);
   float**addresses = new float*[len];  // only interested in addresses of cache
   UTIL_THROW_IF2(cache_->getCache2(ngram, len, &addresses[0], &dummy) != len,
-		  "Error");
+                 "Error");
   // return address of cache node
 
   float *addr0 = addresses[0];

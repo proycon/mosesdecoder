@@ -17,8 +17,10 @@ int main()
   string line;
   getline(cin,line);
   Mmsapt PT(line);
+  PT.Load(false);
+  cout << PT.GetFeatureNames().size() << endl;
   exit(0);
 }
-  
-  
+
+
 

@@ -43,8 +43,10 @@ class WordsBitmap
 protected:
   const size_t m_size; /**< number of words in sentence */
   bool	*m_bitmap;	/**< ticks of words that have been done */
+  size_t m_firstGap; /** Position of first gap, pre-calculated as it is consulted often */
 
   WordsBitmap(); // not implemented
+  WordsBitmap& operator= (const WordsBitmap& other);
 
   //! set all elements to false
   void Initialize() {
@@ -54,35 +56,66 @@ protected:
   }
 
   //sets elements by vector
-  void Initialize(std::vector<bool> vector) {
+  void Initialize(const std::vector<bool>& vector) {
     size_t vector_size = vector.size();
+    bool gapFound = false;
     for (size_t pos = 0 ; pos < m_size ; pos++) {
       if (pos < vector_size && vector[pos] == true) m_bitmap[pos] = true;
-      else m_bitmap[pos] = false;
+      else {
+        m_bitmap[pos] = false;
+        if (!gapFound) {
+          m_firstGap = pos;
+          gapFound = true;
+        }
+      }
+    }
+    if (!gapFound) m_firstGap = NOT_FOUND;
+  }
+
+  /** Update the first gap, when bits are flipped */
+  void UpdateFirstGap(size_t startPos, size_t endPos, bool value) {
+    if (value) {
+      //may remove gap
+      if (startPos <= m_firstGap && m_firstGap <= endPos) {
+        m_firstGap = NOT_FOUND;
+        for (size_t i = endPos + 1 ; i < m_size; ++i) {
+          if (!m_bitmap[i]) {
+            m_firstGap = i;
+            break;
+          }
+        }
+      }
+
+    } else {
+      //setting positions to false, may add new gap
+      if (startPos < m_firstGap) {
+        m_firstGap = startPos;
+      }
     }
   }
 
 
 public:
   //! create WordsBitmap of length size and initialise with vector
-  WordsBitmap(size_t size, std::vector<bool> initialize_vector)
-    :m_size	(size) {
+  WordsBitmap(size_t size, const std::vector<bool>& initialize_vector)
+    :m_size	(size), m_firstGap(0) {
     m_bitmap = (bool*) malloc(sizeof(bool) * size);
     Initialize(initialize_vector);
   }
   //! create WordsBitmap of length size and initialise
   WordsBitmap(size_t size)
-    :m_size	(size) {
+    :m_size	(size), m_firstGap(0) {
     m_bitmap = (bool*) malloc(sizeof(bool) * size);
     Initialize();
   }
   //! deep copy
   WordsBitmap(const WordsBitmap &copy)
-    :m_size	(copy.m_size) {
+    :m_size	(copy.m_size), m_firstGap(copy.m_firstGap) {
     m_bitmap = (bool*) malloc(sizeof(bool) * m_size);
     for (size_t pos = 0 ; pos < copy.m_size ; pos++) {
       m_bitmap[pos] = copy.GetValue(pos);
     }
+    m_firstGap = copy.m_firstGap;
   }
   ~WordsBitmap() {
     free(m_bitmap);
@@ -99,13 +132,7 @@ public:
 
   //! position of 1st word not yet translated, or NOT_FOUND if everything already translated
   size_t GetFirstGapPos() const {
-    for (size_t pos = 0 ; pos < m_size ; pos++) {
-      if (!m_bitmap[pos]) {
-        return pos;
-      }
-    }
-    // no starting pos
-    return NOT_FOUND;
+    return m_firstGap;
   }
 
 
@@ -141,13 +168,22 @@ public:
   //! set value at a particular position
   void SetValue( size_t pos, bool value ) {
     m_bitmap[pos] = value;
+    UpdateFirstGap(pos, pos, value);
   }
   //! set value between 2 positions, inclusive
-  void SetValue( size_t startPos, size_t endPos, bool value ) {
+  void
+  SetValue( size_t startPos, size_t endPos, bool value ) {
     for(size_t pos = startPos ; pos <= endPos ; pos++) {
       m_bitmap[pos] = value;
     }
+    UpdateFirstGap(startPos, endPos, value);
   }
+
+  void
+  SetValue(WordsRange const& range, bool val) {
+    SetValue(range.GetStartPos(), range.GetEndPos(), val);
+  }
+
   //! whether every word has been translated
   bool IsComplete() const {
     return GetSize() == GetNumWordsCovered();
@@ -201,9 +237,6 @@ public:
   }
 
 
-  //! TODO - ??? no idea
-  int GetFutureCosts(int lastPos) const ;
-
   //! converts bitmap into an integer ID: it consists of two parts: the first 16 bit are the pattern between the first gap and the last word-1, the second 16 bit are the number of filled positions. enforces a sentence length limit of 65535 and a max distortion of 16
   WordsBitmapID GetID() const {
     assert(m_size < (1<<16));
@@ -224,7 +257,7 @@ public:
 
   //! converts bitmap into an integer ID, with an additional span covered
   WordsBitmapID GetIDPlus( size_t startPos, size_t endPos ) const {
-	  assert(m_size < (1<<16));
+    assert(m_size < (1<<16));
 
     size_t start = GetFirstGapPos();
     if (start == NOT_FOUND) start = m_size; // nothing left

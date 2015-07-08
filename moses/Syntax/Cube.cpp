@@ -14,10 +14,10 @@ namespace Syntax
 {
 
 Cube::Cube(const SHyperedgeBundle &bundle)
-    : m_bundle(bundle)
+  : m_bundle(bundle)
 {
   // Create the SHyperedge for the 'corner' of the cube.
-  std::vector<int> coordinates(bundle.beams.size()+1, 0);
+  std::vector<int> coordinates(bundle.stacks.size()+1, 0);
   SHyperedge *hyperedge = CreateHyperedge(coordinates);
   // Add its coordinates to the set of visited coordinates.
   std::pair<CoordinateSet::iterator, bool> p = m_visited.insert(coordinates);
@@ -54,17 +54,17 @@ void Cube::CreateNeighbours(const std::vector<int> &coordinates)
   // each neighbour.
   std::vector<int> tmpCoordinates(coordinates);
 
-  // Create each neighbour along the vertex beam dimensions.
+  // Create each neighbour along the vertex stack dimensions.
   for (std::size_t i = 0; i < coordinates.size()-1; ++i) {
-    int x = coordinates[i];
-    if (m_bundle.beams[i]->size() > x+1) {
+    const std::size_t x = coordinates[i];
+    if (m_bundle.stacks[i]->size() > x+1) {
       ++tmpCoordinates[i];
       CreateNeighbour(tmpCoordinates);
       --tmpCoordinates[i];
     }
   }
   // Create the neighbour along the translation dimension.
-  int x = coordinates.back();
+  const std::size_t x = coordinates.back();
   if (m_bundle.translations->GetSize() > x+1) {
     ++tmpCoordinates.back();
     CreateNeighbour(tmpCoordinates);
@@ -94,19 +94,26 @@ SHyperedge *Cube::CreateHyperedge(const std::vector<int> &coordinates)
   head->best = hyperedge;
   head->pvertex = 0;  // FIXME???
   head->state.resize(
-      StatefulFeatureFunction::GetStatefulFeatureFunctions().size());
+    StatefulFeatureFunction::GetStatefulFeatureFunctions().size());
   hyperedge->head = head;
 
   hyperedge->tail.resize(coordinates.size()-1);
   for (std::size_t i = 0; i < coordinates.size()-1; ++i) {
-    boost::shared_ptr<SVertex> pred = (*m_bundle.beams[i])[coordinates[i]];
+    boost::shared_ptr<SVertex> pred = (*m_bundle.stacks[i])[coordinates[i]];
     hyperedge->tail[i] = pred.get();
     if (pred->best) {
-      hyperedge->scoreBreakdown.PlusEquals(pred->best->scoreBreakdown);
+      hyperedge->label.scoreBreakdown.PlusEquals(
+        pred->best->label.scoreBreakdown);
     }
   }
-  hyperedge->translation = *(m_bundle.translations->begin()+coordinates.back());
-  hyperedge->scoreBreakdown.PlusEquals(hyperedge->translation->GetScoreBreakdown());
+
+  hyperedge->label.inputWeight = m_bundle.inputWeight;
+
+  hyperedge->label.translation =
+    *(m_bundle.translations->begin()+coordinates.back());
+
+  hyperedge->label.scoreBreakdown.PlusEquals(
+    hyperedge->label.translation->GetScoreBreakdown());
 
   const StaticData &staticData = StaticData::Instance();
 
@@ -116,7 +123,7 @@ SHyperedge *Cube::CreateHyperedge(const std::vector<int> &coordinates)
     StatelessFeatureFunction::GetStatelessFeatureFunctions();
   for (unsigned i = 0; i < sfs.size(); ++i) {
     if (!staticData.IsFeatureFunctionIgnored(*sfs[i])) {
-      sfs[i]->EvaluateWhenApplied(*hyperedge, &hyperedge->scoreBreakdown);
+      sfs[i]->EvaluateWhenApplied(*hyperedge, &hyperedge->label.scoreBreakdown);
     }
   }
 
@@ -125,11 +132,12 @@ SHyperedge *Cube::CreateHyperedge(const std::vector<int> &coordinates)
   for (unsigned i = 0; i < ffs.size(); ++i) {
     if (!staticData.IsFeatureFunctionIgnored(*ffs[i])) {
       head->state[i] =
-        ffs[i]->EvaluateWhenApplied(*hyperedge, i, &hyperedge->scoreBreakdown);
+        ffs[i]->EvaluateWhenApplied(*hyperedge, i,
+                                    &hyperedge->label.scoreBreakdown);
     }
   }
 
-  hyperedge->score = hyperedge->scoreBreakdown.GetWeightedScore();
+  hyperedge->label.score = hyperedge->label.scoreBreakdown.GetWeightedScore();
 
   return hyperedge;
 }

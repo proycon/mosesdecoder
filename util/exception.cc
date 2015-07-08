@@ -4,8 +4,8 @@
 #include <typeinfo>
 #endif
 
-#include <errno.h>
-#include <string.h>
+#include <cerrno>
+#include <cstring>
 
 namespace util {
 
@@ -30,7 +30,7 @@ void Exception::SetLocation(const char *file, unsigned int line, const char *fun
   /* The child class might have set some text, but we want this to come first.
    * Another option would be passing this information to the constructor, but
    * then child classes would have to accept constructor arguments and pass
-   * them down.  
+   * them down.
    */
   text_ = stream_.str();
   stream_.str("");
@@ -51,6 +51,11 @@ void Exception::SetLocation(const char *file, unsigned int line, const char *fun
 }
 
 namespace {
+
+#ifdef __GNUC__
+const char *HandleStrerror(int ret, const char *buf) __attribute__ ((unused));
+const char *HandleStrerror(const char *ret, const char * /*buf*/) __attribute__ ((unused));
+#endif
 // At least one of these functions will not be called.
 #ifdef __clang__
 #pragma clang diagnostic push

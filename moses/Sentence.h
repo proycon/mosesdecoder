@@ -1,3 +1,4 @@
+// -*- c++ -*-
 // $Id$
 
 /***********************************************************************
@@ -36,6 +37,7 @@ class PhraseDictionary;
 class TranslationOption;
 class TranslationOptionCollection;
 class ChartTranslationOptions;
+class TranslationTask;
 struct XmlOption;
 
 
@@ -45,7 +47,6 @@ struct XmlOption;
  */
 class Sentence : public Phrase, public InputType
 {
-
 protected:
 
   /**
@@ -62,6 +63,9 @@ protected:
 
 public:
   Sentence();
+  Sentence(size_t const transId, std::string const& stext,
+           std::vector<FactorType> const* IFO = NULL);
+  // Sentence(size_t const transId, std::string const& stext);
   ~Sentence();
 
   InputTypeEnum GetType() const {
@@ -87,21 +91,49 @@ public:
   bool XmlOverlap(size_t startPos, size_t endPos) const;
 
   //! populates vector argument with XML force translation options for the specific range passed
-  void GetXmlTranslationOptions(std::vector <TranslationOption*> &list) const;
-  void GetXmlTranslationOptions(std::vector <TranslationOption*> &list, size_t startPos, size_t endPos) const;
-  std::vector <ChartTranslationOptions*> GetXmlChartTranslationOptions() const;
+  void GetXmlTranslationOptions(std::vector<TranslationOption*> &list) const;
+  void GetXmlTranslationOptions(std::vector<TranslationOption*> &list, size_t startPos, size_t endPos) const;
+  std::vector<ChartTranslationOptions*> GetXmlChartTranslationOptions() const;
 
-  int Read(std::istream& in,const std::vector<FactorType>& factorOrder);
+  virtual int Read(std::istream& in,const std::vector<FactorType>& factorOrder);
   void Print(std::ostream& out) const;
 
-  TranslationOptionCollection* CreateTranslationOptionCollection() const;
+  TranslationOptionCollection*
+  CreateTranslationOptionCollection(ttasksptr const& ttask) const;
 
-  void CreateFromString(const std::vector<FactorType> &factorOrder
-                        , const std::string &phraseString);  // , const std::string &factorDelimiter);
+  virtual void
+  CreateFromString(std::vector<FactorType> const &factorOrder,
+                   std::string const& phraseString);
 
-  const NonTerminalSet &GetLabelSet(size_t /*startPos*/, size_t /*endPos*/) const {
+  const NonTerminalSet&
+  GetLabelSet(size_t /*startPos*/, size_t /*endPos*/) const {
     return m_defaultLabelSet;
   }
+
+
+  void
+  init(std::string line, std::vector<FactorType> const& factorOrder);
+
+private:
+  // auxliliary functions for Sentence initialization
+  // void aux_interpret_sgml_markup(std::string& line);
+  // void aux_interpret_dlt(std::string& line);
+  // void aux_interpret_xml (std::string& line, std::vector<size_t> & xmlWalls,
+  // 			    std::vector<std::pair<size_t, std::string> >& placeholders);
+
+  void
+  aux_interpret_sgml_markup(std::string& line);
+
+  void
+  aux_interpret_dlt(std::string& line);
+
+  void
+  aux_interpret_xml
+  (std::string& line, std::vector<size_t> & xmlWalls,
+   std::vector<std::pair<size_t, std::string> >& placeholders);
+
+  void
+  aux_init_partial_translation(std::string& line);
 
 };
 

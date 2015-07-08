@@ -19,12 +19,15 @@
 
 #include "Alignment.h"
 
-#include "Exception.h"
+#include "syntax-common/exception.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdlib>
 
-namespace Moses
+namespace MosesTraining
+{
+namespace Syntax
 {
 namespace GHKM
 {
@@ -61,5 +64,13 @@ void ReadAlignment(const std::string &s, Alignment &a)
   }
 }
 
+void FlipAlignment(Alignment &a)
+{
+  for (Alignment::iterator p = a.begin(); p != a.end(); ++p) {
+    std::swap(p->first, p->second);
+  }
+}
+
 }  // namespace GHKM
-}  // namespace Moses
+}  // namespace Syntax
+}  // namespace MosesTraining

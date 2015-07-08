@@ -27,10 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "moses/StaticData.h"
 #include "moses/TargetPhrase.h"
 #include "moses/Util.h"
-#include "moses/UserMessage.h"
 #include <exception>
-
-extern std::vector<std::string> tokenize( const char*);
 
 namespace Moses
 {
@@ -99,7 +96,7 @@ public:
   std::vector<float> MinimizePerplexity(std::vector<std::pair<std::string, std::string> > &phrase_pair_vector);
 #endif
   // functions below required by base class
-  virtual void InitializeForInput(InputType const&) {
+  virtual void InitializeForInput(ttasksptr const& ttask) {
     /* Don't do anything source specific here as this object is shared between threads.*/
   }
 

@@ -17,11 +17,12 @@ class StatefulFeatureFunction: public FeatureFunction
   static std::vector<const StatefulFeatureFunction*> m_statefulFFs;
 
 public:
-  static const std::vector<const StatefulFeatureFunction*>& GetStatefulFeatureFunctions() {
+  static const std::vector<const StatefulFeatureFunction*>&
+  GetStatefulFeatureFunctions() {
     return m_statefulFFs;
   }
 
-  StatefulFeatureFunction(const std::string &line);
+  StatefulFeatureFunction(const std::string &line, bool registerNow);
   StatefulFeatureFunction(size_t numScoreComponents, const std::string &line);
 
   /**
@@ -36,6 +37,14 @@ public:
     const FFState* prev_state,
     ScoreComponentCollection* accumulator) const = 0;
 
+  virtual FFState* EvaluateWhenAppliedWithContext(
+    ttasksptr const& ttasks,
+    const Hypothesis& cur_hypo,
+    const FFState* prev_state,
+    ScoreComponentCollection* accumulator) const {
+    return EvaluateWhenApplied(cur_hypo, prev_state, accumulator);
+  }
+
   virtual FFState* EvaluateWhenApplied(
     const ChartHypothesis& /* cur_hypo */,
     int /* featureID - used to index the state in the previous hypotheses */,
@@ -44,7 +53,10 @@ public:
   virtual FFState* EvaluateWhenApplied(
     const Syntax::SHyperedge& /* cur_hypo */,
     int /* featureID - used to index the state in the previous hypotheses */,
-    ScoreComponentCollection* accumulator) const { assert(false); return 0; /* FIXME */ }
+    ScoreComponentCollection* accumulator) const {
+    assert(false);
+    return 0; /* FIXME */
+  }
 
   //! return the state associated with the empty hypothesis for a given sentence
   virtual const FFState* EmptyHypothesisState(const InputType &input) const = 0;

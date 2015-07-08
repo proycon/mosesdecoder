@@ -1,7 +1,6 @@
 #include "BleuScoreFeature.h"
 
 #include "moses/StaticData.h"
-#include "moses/UserMessage.h"
 #include "moses/Hypothesis.h"
 #include "moses/FactorCollection.h"
 #include "util/exception.hh"
@@ -28,7 +27,7 @@ int BleuScoreState::Compare(const FFState& o) const
   if (&o == this)
     return 0;
 
-  if (StaticData::Instance().IsChart())
+  if (StaticData::Instance().IsSyntax())
     return 0;
 
   const BleuScoreState& other = dynamic_cast<const BleuScoreState&>(o);
@@ -118,7 +117,7 @@ void BleuScoreFeature::SetParameter(const std::string& key, const std::string& v
       }
       string line;
       while (getline(in,line)) {
-        /*  if (GetSearchAlgorithm() == ChartDecoding) {
+        /*  if (GetSearchAlgorithm() == CYKPlus) {
         stringstream tmp;
         tmp << "<s> " << line << " </s>";
         line = tmp.str();
@@ -503,8 +502,8 @@ void BleuScoreFeature::GetClippedNgramMatchesAndCounts(Phrase& phrase,
  * phrase translated.
  */
 FFState* BleuScoreFeature::EvaluateWhenApplied(const Hypothesis& cur_hypo,
-                                    const FFState* prev_state,
-                                    ScoreComponentCollection* accumulator) const
+    const FFState* prev_state,
+    ScoreComponentCollection* accumulator) const
 {
   if (!m_enabled) return new BleuScoreState();
 
@@ -881,6 +880,7 @@ const FFState* BleuScoreFeature::EmptyHypothesisState(const InputType& input) co
 
 bool BleuScoreFeature::IsUseable(const FactorMask &mask) const
 {
+  // TODO: Was this meant to return mask[0]!?
   bool ret = mask[0];
   return 0;
 }

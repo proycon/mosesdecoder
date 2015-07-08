@@ -1,3 +1,4 @@
+// -*- c++ -*-
 // $Id$
 
 /***********************************************************************
@@ -64,6 +65,7 @@ class TranslationOptionCollection
   friend std::ostream& operator<<(std::ostream& out, const TranslationOptionCollection& coll);
   TranslationOptionCollection(const TranslationOptionCollection&); /*< no copy constructor */
 protected:
+  ttaskwptr m_ttask; // that is and must be a weak pointer!
   std::vector< std::vector< TranslationOptionList > >	m_collection; /*< contains translation options */
   InputType const			&m_source; /*< reference to the input */
   SquareMatrix				m_futureScore; /*< matrix of future costs for contiguous parts (span) of the input */
@@ -72,7 +74,8 @@ protected:
   std::vector<const Phrase*> m_unksrcs;
   InputPathList m_inputPathQueue;
 
-  TranslationOptionCollection(InputType const& src, size_t maxNoTransOptPerCoverage,
+  TranslationOptionCollection(ttasksptr const& ttask,
+                              InputType const& src, size_t maxNoTransOptPerCoverage,
                               float translationOptionThreshold);
 
   void CalcFutureScore();
@@ -88,9 +91,17 @@ protected:
   //! sort all trans opt in each list for cube pruning */
   void Sort();
 
+public:
+  // is there any good reason not to make these public? UG
+
   //! list of trans opt for a particular span
-  TranslationOptionList &GetTranslationOptionList(size_t startPos, size_t endPos);
-  const TranslationOptionList &GetTranslationOptionList(size_t startPos, size_t endPos) const;
+  TranslationOptionList*
+  GetTranslationOptionList(size_t startPos, size_t endPos);
+
+  TranslationOptionList const*
+  GetTranslationOptionList(size_t startPos, size_t endPos) const;
+
+protected:
   void Add(TranslationOption *translationOption);
 
   //! implemented by inherited class, called by this class
@@ -98,11 +109,13 @@ protected:
 
   void EvaluateWithSourceContext();
 
+  void EvaluateTranslationOptionListWithSourceContext(TranslationOptionList&);
+
   void CacheLexReordering();
 
   void GetTargetPhraseCollectionBatch();
 
-  void CreateTranslationOptionsForRange(
+  bool CreateTranslationOptionsForRange(
     const DecodeGraph &decodeGraph
     , size_t startPos
     , size_t endPos
@@ -127,15 +140,20 @@ public:
 
   //! Create all possible translations from the phrase tables
   virtual void CreateTranslationOptions();
+
   //! Create translation options that exactly cover a specific input span.
-  virtual void CreateTranslationOptionsForRange(const DecodeGraph &decodeStepList
-      , size_t startPosition
-      , size_t endPosition
-      , bool adhereTableLimit
-      , size_t graphInd) = 0;
+  virtual
+  bool
+  CreateTranslationOptionsForRange
+  (const DecodeGraph &decodeStepList,
+   size_t startPosition, size_t endPosition,
+   bool adhereTableLimit, size_t graphInd) = 0;
 
   //!Check if this range has XML options
-  virtual bool HasXmlOptionsOverlappingRange(size_t startPosition, size_t endPosition) const;
+  virtual
+  bool
+  HasXmlOptionsOverlappingRange(size_t startPosition,
+                                size_t endPosition) const;
 
   //! Check if a subsumed XML option constraint is satisfied
   virtual bool ViolatesXmlOptionsConstraint(size_t startPosition, size_t endPosition, TranslationOption *transOpt) const;
@@ -150,14 +168,18 @@ public:
   }
 
   //! list of trans opt for a particular span
-  const TranslationOptionList &GetTranslationOptionList(const WordsRange &coverage) const {
+  TranslationOptionList const*
+  GetTranslationOptionList(const WordsRange &coverage) const {
     return GetTranslationOptionList(coverage.GetStartPos(), coverage.GetEndPos());
   }
 
-  const InputPathList &GetInputPaths() const
-  { return m_inputPathQueue; }
+  const InputPathList &GetInputPaths() const {
+    return m_inputPathQueue;
+  }
 
-
+  ttasksptr GetTranslationTask() const {
+    return m_ttask.lock();
+  }
   TO_STRING();
 };
 

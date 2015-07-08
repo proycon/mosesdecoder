@@ -2,6 +2,7 @@
 
 #include "moses/Factor.h"
 #include "moses/Syntax/PVertex.h"
+#include "moses/Syntax/SHyperedge.h"
 
 namespace Moses
 {
@@ -60,7 +61,7 @@ void DerivationWriter::WriteLine(const SHyperedge &shyperedge,
   out << " ->";
 
   // Target RHS symbols.
-  const TargetPhrase &phrase = *(shyperedge.translation);
+  const TargetPhrase &phrase = *(shyperedge.label.translation);
   for (std::size_t i = 0; i < phrase.GetSize(); ++i) {
     out << " ";
     WriteSymbol(phrase.GetWord(i), out);

@@ -70,19 +70,45 @@
 #-a to build from scratch
 #-j$NCPUS to compile in parallel
 #--clean to clean
+#--debug-build to build with Og. Only available with gcc 4.8+
 
+import os ;
 import option ;
 import modules ;
 import path ;
 path-constant TOP : . ;
+
 include $(TOP)/jam-files/sanity.jam ;
+
+home = [ os.environ "HOME" ] ;
+if [ path.exists $(home)/moses-environment.jam ] 
+{ 
+  # for those of use who don't like typing in command line bjam options all day long
+  include $(home)/moses-environment.jam ; 
+}
+include $(TOP)/jam-files/check-environment.jam ; # get resource locations 
+                                                 # from environment variables
+include $(TOP)/jam-files/xmlrpc-c.jam ; # xmlrpc-c stuff for the server
+# include $(TOP)/jam-files/curlpp.jam ;   # curlpp stuff for bias lookup (MMT only)
+
+# exit "done" : 0 ;
+
+max-order = [ option.get "max-kenlm-order" : 6 : 6 ] ;
+if ! [ option.get "max-kenlm-order" ] 
+{
+  # some classes in Moses pull in header files from KenLM, so this needs to be 
+  # defined here, not in moses/lm/Jamfile 
+  option.set "max-kenlm-order" : 6 ;
+  requirements += <define>KENLM_MAX_ORDER=$(max-order) ;
+}
+# exit "all done" : 0 ; 
 
 boost 104400 ;
 external-lib z ;
 
-lib dl : : <runtime-link>static:<link>static <runtime-link>shared:<link>shared ;
-requirements += <library>dl ;
-
+#lib dl : : <runtime-link>static:<link>static <runtime-link>shared:<link>shared ;
+#requirements += <library>dl ;
+#requirements += <cxxflags>-std=c++0x ;
 
 if ! [ option.get "without-tcmalloc" : : "yes" ] && [ test_library "tcmalloc_minimal" ] {
   if [ option.get "full-tcmalloc" : : "yes" ] {
@@ -95,6 +121,24 @@ if ! [ option.get "without-tcmalloc" : : "yes" ] && [ test_library "tcmalloc_min
   }
 } else {
   echo "Tip: install tcmalloc for faster threading.  See BUILD-INSTRUCTIONS.txt for more information." ;
+}
+
+if [ option.get "filter-warnings" : : "yes" ] {
+  # given the low coding standards in Moses, we may want to filter out
+  # warnings about poor coding practice that no-one is ever going to fix 
+  # anyway ...
+  requirements += <cxxflags>-Wno-deprecated ;
+  requirements += <cxxflags>-Wno-reorder ;
+  requirements += <cxxflags>-Wno-sign-compare ;
+  requirements += <cxxflags>-Wno-unused-but-set-variable ;
+  requirements += <cxxflags>-Wno-unused-result ;
+  requirements += <cxxflags>-Wno-unused-variable ;
+  requirements += <cxxflags>-Wcomment ;
+}
+
+if [ option.get "debug-build" : : "yes" ] {
+   requirements += <cxxflags>-Og ;
+   echo "Building with -Og to enable easier profiling and debugging. Only available on gcc 4.8+." ;
 }
 
 if [ option.get "enable-mpi" : : "yes" ] {
@@ -145,6 +189,10 @@ if [ option.get "with-probing-pt" : : "yes" ]
   requirements += <library>boost_serialization ;
 }
 
+if [ option.get "with-vw" ] {
+  requirements += <define>HAVE_VW ;
+}
+
 project : default-build
   <threading>multi
   <warnings>on
@@ -161,21 +209,26 @@ project : requirements
   <threading>multi:<define>WITH_THREADS
   <threading>multi:<library>boost_thread
   <library>boost_system
+  <library>boost_program_options
   <define>_FILE_OFFSET_BITS=64 <define>_LARGE_FILES
   $(requirements)
   <include>.
   ;
 
+
 #Add directories here if you want their incidental targets too (i.e. tests).
-build-projects lm util phrase-extract search moses moses/LM mert moses-cmd moses-chart-cmd mira scripts regression-testing  ;
+build-projects lm util phrase-extract phrase-extract/syntax-common search moses moses/LM mert moses-cmd scripts regression-testing ;
+# contrib/mira
 
 if [ option.get "with-mm" : : "yes" ]
 {
  alias mm :  
+  moses/TranslationModel/UG//bitext-find 
+  moses/TranslationModel/UG//ptable-describe-features 
   moses/TranslationModel/UG//count-ptable-features 
   moses/TranslationModel/UG//ptable-lookup 
-  moses/TranslationModel/UG//sim-pe 
-  moses/TranslationModel/UG//spe-check-coverage 
+  # moses/TranslationModel/UG//spe-check-coverage 
+  moses/TranslationModel/UG/mm//mtt-demo1 
   moses/TranslationModel/UG/mm//mtt-build 
   moses/TranslationModel/UG/mm//mtt-dump 
   moses/TranslationModel/UG/mm//symal2mam 
@@ -206,7 +259,6 @@ else
 
 alias programs : 
 lm//programs 
-moses-chart-cmd//moses_chart 
 moses-cmd//programs 
 OnDiskPt//CreateOnDiskPt 
 OnDiskPt//queryOnDiskPt 
@@ -219,16 +271,20 @@ phrase-extract//extract-ghkm
 phrase-extract//pcfg-extract 
 phrase-extract//pcfg-score 
 phrase-extract//extract-mixed-syntax 
+phrase-extract//score-stsg
+phrase-extract//filter-rule-table
+phrase-extract//postprocess-egret-forests
 biconcor 
-mira//mira 
+#contrib/mira//mira 
 contrib/server//mosesserver 
 mm
 rephraser
+contrib/c++tokenizer//tokenizer
 ;
 
 
 install-bin-libs programs ;
-install-headers headers-base : [ path.glob-tree biconcor contrib lm mert misc moses-chart-cmd moses-cmd OnDiskPt phrase-extract symal util : *.hh *.h ] : . ;
+install-headers headers-base : [ path.glob-tree biconcor contrib lm mert misc moses-cmd OnDiskPt phrase-extract symal util : *.hh *.h ] : . ;
 install-headers headers-moses : moses//headers-to-install : moses ;
 
 alias install : prefix-bin prefix-lib headers-base headers-moses ;
@@ -242,3 +298,8 @@ if [ path.exists $(TOP)/dist ] && $(prefix) != dist {
   echo "To disable this message, delete $(TOP)/dist ." ;
   echo ;
 }
+
+#local temp = [ _shell "bash source ./s.sh" ] ;
+local temp = [ _shell "mkdir -p $(TOP)/bin" ] ;
+local temp = [ _shell "rm $(TOP)/bin/moses_chart" ] ;
+local temp = [ _shell "cd $(TOP)/bin && ln -s moses moses_chart" ] ;

@@ -17,6 +17,7 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ***********************************************************************/
 #include "util/exception.hh"
+#include "util/tokenize.hh"
 #include "moses/TranslationModel/PhraseDictionaryMultiModelCounts.h"
 
 using namespace std;
@@ -28,29 +29,6 @@ void OutputVec(const vector<T> &vec)
     cerr << vec[i] << " " << flush;
   }
   cerr << endl;
-}
-
-// from phrase-extract/tables-core.cpp
-vector<string> tokenize( const char* input )
-{
-  vector< string > token;
-  bool betweenWords = true;
-  int start=0;
-  int i=0;
-  for(; input[i] != '\0'; i++) {
-    bool isSpace = (input[i] == ' ' || input[i] == '\t');
-
-    if (!isSpace && betweenWords) {
-      start = i;
-      betweenWords = false;
-    } else if (isSpace && !betweenWords) {
-      token.push_back( string( input+start, i-start ) );
-      betweenWords = true;
-    }
-  }
-  if (!betweenWords)
-    token.push_back( string( input+start, i-start ) );
-  return token;
 }
 
 namespace Moses
@@ -65,7 +43,7 @@ PhraseDictionaryMultiModelCounts::PhraseDictionaryMultiModelCounts(const std::st
   ReadParameters();
 
   UTIL_THROW_IF2(m_targetTable.size() != m_pdStr.size(),
-		  "List of phrase tables and target tables must be equal");
+                 "List of phrase tables and target tables must be equal");
 
 }
 
@@ -85,11 +63,11 @@ void PhraseDictionaryMultiModelCounts::SetParameter(const std::string& key, cons
   } else if (key == "lex-e2f") {
     m_lexE2FStr = Tokenize(value, ",");
     UTIL_THROW_IF2(m_lexE2FStr.size() != m_pdStr.size(),
-    		"Number of scores for lexical probability p(f|e) incorrectly specified");
+                   "Number of scores for lexical probability p(f|e) incorrectly specified");
   } else if (key == "lex-f2e") {
     m_lexF2EStr = Tokenize(value, ",");
     UTIL_THROW_IF2(m_lexF2EStr.size() != m_pdStr.size(),
-    		"Number of scores for lexical probability p(e|f) incorrectly specified");
+                   "Number of scores for lexical probability p(e|f) incorrectly specified");
   } else if (key == "target-table") {
     m_targetTable = Tokenize(value, ",");
   } else {
@@ -115,14 +93,14 @@ void PhraseDictionaryMultiModelCounts::Load()
     PhraseDictionary *pt;
     pt = FindPhraseDictionary(ptName);
     UTIL_THROW_IF2(pt == NULL,
-    		"Could not find component phrase table " << ptName);
+                   "Could not find component phrase table " << ptName);
     m_pd.push_back(pt);
 
     // reverse
     const string &target_table = m_targetTable[i];
     pt = FindPhraseDictionary(target_table);
     UTIL_THROW_IF2(pt == NULL,
-    		"Could not find component phrase table " << target_table);
+                   "Could not find component phrase table " << target_table);
     m_inverse_pd.push_back(pt);
 
     // lex
@@ -464,7 +442,7 @@ void PhraseDictionaryMultiModelCounts::LoadLexicalTable( string &fileName, lexic
     i++;
     if (i%100000 == 0) cerr << "." << flush;
 
-    vector<string> token = tokenize( line.c_str() );
+    const vector<string> token = util::tokenize( line );
     if (token.size() != 4) {
       cerr << "line " << i << " in " << fileName
            << " has wrong number of tokens, skipping:\n"

@@ -7,7 +7,8 @@ size_t lookup( string );
 vector<string> tokenize( const char input[] );
 SuffixArray suffixArray;
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
   // handle parameters
   string query;
   string fileNameSuffix;
@@ -95,27 +96,30 @@ int main(int argc, char* argv[]) {
       }
       cout << lookup( query ) << endl;
     }
-  } 
-  else if (queryFlag) {
+  } else if (queryFlag) {
     cout << lookup( query ) << endl;
   }
   return 0;
 }
 
-size_t lookup( string query ) {
+size_t lookup( string query )
+{
   cerr << "query is " << query << endl;
   vector< string > queryString = tokenize( query.c_str() );
   return suffixArray.Count( queryString );
 }
 
-vector<string> tokenize( const char input[] )
+// Duplicate of definition in util/tokenize.hh.
+// TODO: Can we de-duplicate this?  At the time of writing biconcor does not
+// use util at all.
+vector<string> tokenize(const char input[])
 {
   vector< string > token;
   bool betweenWords = true;
   int start=0;
-  int i=0;
-  for(; input[i] != '\0'; i++) {
-    bool isSpace = (input[i] == ' ' || input[i] == '\t');
+  int i;
+  for(i = 0; input[i] != '\0'; i++) {
+    const bool isSpace = (input[i] == ' ' || input[i] == '\t');
 
     if (!isSpace && betweenWords) {
       start = i;

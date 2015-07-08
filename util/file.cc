@@ -13,9 +13,9 @@
 #include <sstream>
 
 
-#include <assert.h>
-#include <errno.h>
-#include <limits.h>
+#include <cassert>
+#include <cerrno>
+#include <climits>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -111,10 +111,7 @@ uint64_t SizeOrThrow(int fd) {
 }
 
 void ResizeOrThrow(int fd, uint64_t to) {
-#if defined __MINGW32__
-    // Does this handle 64-bit?
-    int ret = ftruncate
-#elif defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32) || defined(_WIN64)
     errno_t ret = _chsize_s
 #elif defined(OS_ANDROID)
     int ret = ftruncate64

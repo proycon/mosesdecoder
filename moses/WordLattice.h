@@ -1,3 +1,4 @@
+// -*- c++ -*-
 #ifndef moses_WordLattice_h
 #define moses_WordLattice_h
 
@@ -8,6 +9,8 @@
 
 namespace Moses
 {
+
+class TranslationTask;
 
 /** An input to the decoder that represent a word lattice.
  *  @todo why is this inherited from confusion net?
@@ -21,6 +24,11 @@ private:
 
 public:
   WordLattice();
+
+  InputTypeEnum GetType() const {
+    return WordLatticeInput;
+  }
+
   size_t GetColumnIncrement(size_t ic, size_t j) const;
   void Print(std::ostream&) const;
   /** Get shortest path between two nodes
@@ -46,7 +54,8 @@ public:
     return next_nodes[pos];
   }
 
-  TranslationOptionCollection *CreateTranslationOptionCollection() const;
+  TranslationOptionCollection*
+  CreateTranslationOptionCollection(ttasksptr const& ttask) const;
 };
 
 }

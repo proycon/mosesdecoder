@@ -1,10 +1,10 @@
-#!/usr/bin/perl -w 
+#!/usr/bin/perl -w
 
 use strict;
 
 BEGIN {
-use Cwd qw/ abs_path /; 
-use File::Basename; 
+use Cwd qw/ abs_path /;
+use File::Basename;
 my $script_dir = dirname(abs_path($0));
 print STDERR  "script_dir=$script_dir\n";
 push @INC, $script_dir;
@@ -30,10 +30,10 @@ GetOptions("extractor=s" => \$extractorExe,
           ) or exit 1;
 
 # output dir
-unless (defined $results_dir) 
-{ 
+unless (defined $results_dir)
+{
   my $ts = get_timestamp($extractorExe);
-  $results_dir = "$data_dir/results/$test_name/$ts"; 
+  $results_dir = "$data_dir/results/$test_name/$ts";
 }
 
 `mkdir -p $results_dir`;
@@ -46,6 +46,11 @@ s/(\$\w+)/$1/eeg;
 $extractorArgs = $_;
 
 my $cmdMain = "$extractorExe $extractorArgs \n";
+
+open  CMD, ">$results_dir/cmd_line";
+print CMD "$cmdMain";
+close CMD;
+
 `$cmdMain`;
 
 my $truthPath = "$test_dir/$test_name/truth/";
@@ -53,7 +58,7 @@ my $truthPath = "$test_dir/$test_name/truth/";
 
 if (-e $outPath)
 {
-  my $cmd = "diff --exclude=.DS_Store --exclude=._* $outPath/ $truthPath/ | wc -l";
+  my $cmd = "diff --exclude=.DS_Store --exclude=._* --exclude=cmd_line $outPath/ $truthPath/ | wc -l";
   my $numDiff = `$cmd`;
 
   if ($numDiff == 0)

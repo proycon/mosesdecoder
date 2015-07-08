@@ -46,21 +46,22 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <stdexcept>
 #include <set>
 
-#include "IOWrapper.h"
+#include "moses/IOWrapper.h"
 #include "moses/LatticeMBR.h"
 #include "moses/Manager.h"
 #include "moses/StaticData.h"
 #include "util/exception.hh"
 
+#include <boost/foreach.hpp>
+#include "moses/TranslationTask.h"
 
 using namespace std;
 using namespace Moses;
-using namespace MosesCmd;
 
 //keys
 enum gridkey {lmbr_p,lmbr_r,lmbr_prune,lmbr_scale};
 
-namespace MosesCmd
+namespace Moses
 {
 
 class Grid
@@ -70,7 +71,7 @@ public:
   void addParam(gridkey key, const string& arg, float defaultValue) {
     m_args[arg] = key;
     UTIL_THROW_IF2(m_grid.find(key) != m_grid.end(),
-    		  "Couldn't find value for key " << (int) key);
+                   "Couldn't find value for key " << (int) key);
     m_grid[key].push_back(defaultValue);
   }
 
@@ -157,58 +158,53 @@ int main(int argc, char* argv[])
     exit(1);
   }
 
-  StaticData& staticData = const_cast<StaticData&>(StaticData::Instance());
-  staticData.SetUseLatticeMBR(true);
-  IOWrapper* ioWrapper = GetIOWrapper(staticData);
+  StaticData& SD = const_cast<StaticData&>(StaticData::Instance());
+  SD.SetUseLatticeMBR(true);
 
+  boost::shared_ptr<IOWrapper> ioWrapper(new IOWrapper);
   if (!ioWrapper) {
     throw runtime_error("Failed to initialise IOWrapper");
   }
-  size_t nBestSize = staticData.GetMBRSize();
+  size_t nBestSize = SD.GetMBRSize();
 
   if (nBestSize <= 0) {
     throw new runtime_error("Non-positive size specified for n-best list");
   }
-
-  size_t lineCount = 0;
-  InputType* source = NULL;
 
   const vector<float>& pgrid = grid.getGrid(lmbr_p);
   const vector<float>& rgrid = grid.getGrid(lmbr_r);
   const vector<float>& prune_grid = grid.getGrid(lmbr_prune);
   const vector<float>& scale_grid = grid.getGrid(lmbr_scale);
 
-  while(ReadInput(*ioWrapper,staticData.GetInputType(),source)) {
-    ++lineCount;
-    Sentence sentence;
-    Manager manager(lineCount, *source, staticData.GetSearchAlgorithm());
-    manager.ProcessSentence();
+  boost::shared_ptr<InputType> source;
+  while((source = ioWrapper->ReadInput()) != NULL) {
+    // set up task of translating one sentence
+    boost::shared_ptr<TranslationTask> ttask;
+    ttask = TranslationTask::create(source, ioWrapper);
+    Manager manager(ttask);
+    manager.Decode();
     TrellisPathList nBestList;
     manager.CalcNBest(nBestSize, nBestList,true);
     //grid search
-    for (vector<float>::const_iterator pi = pgrid.begin(); pi != pgrid.end(); ++pi) {
-      float p = *pi;
-      staticData.SetLatticeMBRPrecision(p);
-      for (vector<float>::const_iterator ri = rgrid.begin(); ri != rgrid.end(); ++ri) {
-        float r = *ri;
-        staticData.SetLatticeMBRPRatio(r);
-        for (vector<float>::const_iterator prune_i = prune_grid.begin(); prune_i != prune_grid.end(); ++prune_i) {
-          size_t prune = (size_t)(*prune_i);
-          staticData.SetLatticeMBRPruningFactor(prune);
-          for (vector<float>::const_iterator scale_i = scale_grid.begin(); scale_i != scale_grid.end(); ++scale_i) {
-            float scale = *scale_i;
-            staticData.SetMBRScale(scale);
-            cout << lineCount << " ||| " << p << " " << r << " " << prune << " " << scale << " ||| ";
+    BOOST_FOREACH(float const& p, pgrid) {
+      SD.SetLatticeMBRPrecision(p);
+      BOOST_FOREACH(float const& r, rgrid) {
+        SD.SetLatticeMBRPRatio(r);
+        BOOST_FOREACH(size_t const prune_i, prune_grid) {
+          SD.SetLatticeMBRPruningFactor(size_t(prune_i));
+          BOOST_FOREACH(float const& scale_i, scale_grid) {
+            SD.SetMBRScale(scale_i);
+            size_t lineCount = source->GetTranslationId();
+            cout << lineCount << " ||| " << p << " "
+                 << r << " " << size_t(prune_i) << " " << scale_i
+                 << " ||| ";
             vector<Word> mbrBestHypo = doLatticeMBR(manager,nBestList);
-            OutputBestHypo(mbrBestHypo, lineCount, staticData.GetReportSegmentation(),
-                           staticData.GetReportAllFactors(),cout);
+            manager.OutputBestHypo(mbrBestHypo, lineCount,
+                                   SD.GetReportSegmentation(),
+                                   SD.GetReportAllFactors(),cout);
           }
         }
-
       }
     }
-
-
   }
-
 }
