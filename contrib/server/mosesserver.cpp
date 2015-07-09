@@ -257,16 +257,7 @@ public:
 
   bool IsDone() const {return m_done;}
 
-class Translator : public xmlrpc_c::method
-{
-public:
-  Translator() {
-    // signature and help strings are documentation -- the client
-    // can query this information with a system.methodSignature and
-    // system.methodHelp RPC.
-    this->_signature = "S:S";
-    this->_help = "Does translation";
-  }
+  const map<string, xmlrpc_c::value>& GetRetData() { return m_retData;}
 
   virtual void
   Run()
@@ -329,7 +320,6 @@ public:
 
 
     stringstream out, graphInfo, transCollOpts;
-    map<string, xmlrpc_c::value> retData;
 
     if (staticData.IsSyntax())
       {
@@ -391,7 +381,12 @@ public:
       }
     m_retData["text"] = value_string(out.str());
     XVERBOSE(1,"Output: " << out.str() << endl);
-    *retvalP = xmlrpc_c::value_struct(retData);
+    {
+      boost::lock_guard<boost::mutex> lock(m_mut);
+      m_done = true;
+    }
+    m_cond.notify_one();
+
   }
 
   void outputHypo(ostream& out, const Hypothesis* hypo,
@@ -681,6 +676,7 @@ int main(int argc, char** argv)
   int port = 8080;
   const char* logfile = "/dev/null";
   bool isSerial = false;
+  size_t numThreads = 10; //for translation tasks
 
   for (int i = 0; i < argc; ++i) {
     if (!strcmp(argv[i],"--server-port")) {
@@ -698,6 +694,14 @@ int main(int argc, char** argv)
         exit(1);
       } else {
         logfile = argv[i];
+      }
+    } else if (!strcmp(argv[i], "--threads")) {
+      ++i;
+      if (i>=argc) {
+        cerr << "Error: Missing argument to --threads" << endl;
+        exit(1);
+      } else {
+        numThreads = atoi(argv[i]);
       }
     } else if (!strcmp(argv[i], "--serial")) {
       cerr << "Running single-threaded server" << endl;
@@ -728,7 +732,7 @@ int main(int argc, char** argv)
 
   xmlrpc_c::registry myRegistry;
 
-  xmlrpc_c::methodPtr const translator(new Translator);
+  xmlrpc_c::methodPtr const translator(new Translator(numThreads));
   xmlrpc_c::methodPtr const updater(new Updater);
   xmlrpc_c::methodPtr const optimizer(new Optimizer);
 
