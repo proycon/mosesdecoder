@@ -1,15 +1,14 @@
-// -*- mode: c++; cc-style: moses-cc-style -*-
+// -*- mode: c++; tab-width: 2; indent-tabs-mode: nil; cc-style: moses-cc-style -*-
 #pragma once
 #ifndef NO_MOSES
-namespace Moses {
-namespace bitext {
+namespace sapt {
 
 template<typename Token>
-sptr<pstats>
+SPTR<pstats>
 Bitext<Token>::
 lookup(ttasksptr const& ttask, iter const& phrase, int max_sample) const
 {
-  sptr<pstats> ret = prep2(ttask, phrase, max_sample);
+  SPTR<pstats> ret = prep2(ttask, phrase, max_sample);
   UTIL_THROW_IF2(!ret, "Got NULL pointer where I expected a valid pointer.");
   
   // Why were we locking here?
@@ -31,9 +30,9 @@ lookup(ttasksptr const& ttask, iter const& phrase, int max_sample) const
 template<typename Token>
 void
 Bitext<Token>::
-prep(ttasksptr const& ttask, iter const& phrase) const
+prep(ttasksptr const& ttask, iter const& phrase, bool const track_sids) const
 {
-  prep2(ttask, phrase, m_default_sample_size);
+  prep2(ttask, phrase, track_sids, m_default_sample_size);
 }
 
 
@@ -42,17 +41,18 @@ prep(ttasksptr const& ttask, iter const& phrase) const
 // and waits until the sampling is finished before it returns.
 // This allows sampling in the background
 template<typename Token>
-sptr<pstats>
+SPTR<pstats>
 Bitext<Token>
 ::prep2
-( ttasksptr const& ttask, iter const& phrase, int max_sample) const
+( ttasksptr const& ttask, iter const& phrase, bool const track_sids,
+  int max_sample) const
 {
   if (max_sample < 0) max_sample = m_default_sample_size;
-  sptr<SamplingBias> bias;
-  sptr<ContextScope> scope = ttask->GetScope();
-  sptr<ContextForQuery> context = scope->get<ContextForQuery>(this);
+  SPTR<SamplingBias> bias;
+  SPTR<Moses::ContextScope> scope = ttask->GetScope();
+  SPTR<ContextForQuery> context = scope->get<ContextForQuery>(this);
   if (context) bias = context->bias;
-  sptr<pstats::cache_t> cache;
+  SPTR<pstats::cache_t> cache;
   // - no caching for rare phrases and special requests (max_sample)
   //   (still need to test what a good caching threshold is ...)
   // - use the task-specific cache when there is a sampling bias
@@ -63,8 +63,8 @@ Bitext<Token>
 	       ? (bias ? context->cache1 : m_cache1)
 	       : (bias ? context->cache2 : m_cache2));
     }
-  sptr<pstats> ret;
-  sptr<pstats> const* cached;
+  SPTR<pstats> ret;
+  SPTR<pstats> const* cached;
   
   if (cache && (cached = cache->get(phrase.getPid(), ret)) && *cached)
     return *cached;
@@ -75,7 +75,7 @@ Bitext<Token>
       if (m_num_workers > 1)
 	ag->add_workers(m_num_workers);
     }
-  ret = ag->add_job(this, phrase, max_sample, bias);
+  ret = ag->add_job(this, phrase, max_sample, bias, track_sids);
   if (cache) cache->set(phrase.getPid(),ret);
   UTIL_THROW_IF2(ret == NULL, "Couldn't schedule sampling job.");
   return ret;
@@ -83,6 +83,5 @@ Bitext<Token>
 
 
 
-}
 }
 #endif

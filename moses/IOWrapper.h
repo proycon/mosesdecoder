@@ -1,4 +1,4 @@
-// -*- c++ -*-
+// -*- mode: c++; indent-tabs-mode: nil; tab-width: 2 -*-
 // $Id$
 
 /***********************************************************************
@@ -45,6 +45,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <list>
 #include <iomanip>
+#include <limits>
 
 #include "moses/TypeDef.h"
 #include "moses/Sentence.h"
@@ -60,8 +61,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "moses/LatticeMBR.h"
 #include "moses/ChartKBestExtractor.h"
 #include "moses/Syntax/KBestExtractor.h"
+#include "moses/parameters/AllOptions.h"
 
 #include <boost/format.hpp>
+#include <boost/shared_ptr.hpp>
 
 namespace Moses
 {
@@ -80,16 +83,17 @@ struct SHyperedge;
 class IOWrapper
 {
 protected:
+  boost::shared_ptr<AllOptions const> m_options;
   const std::vector<Moses::FactorType>	*m_inputFactorOrder;
   std::string m_inputFilePath;
   Moses::InputFileStream *m_inputFile;
   std::istream *m_inputStream;
   std::ostream *m_nBestStream;
-  std::ostream *m_outputWordGraphStream;
-  std::ostream *m_outputSearchGraphStream;
-  std::ostream *m_detailedTranslationReportingStream;
+  // std::ostream *m_outputWordGraphStream;
+  // std::auto_ptr<std::ostream> m_outputSearchGraphStream;
+  // std::ostream *m_detailedTranslationReportingStream;
   std::ostream *m_unknownsStream;
-  std::ostream *m_detailedTreeFragmentsTranslationReportingStream;
+  // std::ostream *m_detailedTreeFragmentsTranslationReportingStream;
   std::ofstream *m_alignmentInfoStream;
   std::ofstream *m_latticeSamplesStream;
 
@@ -123,11 +127,13 @@ protected:
   std::string m_hypergraph_output_filepattern;
 
 public:
-  IOWrapper();
+  IOWrapper(AllOptions const& opts);
   ~IOWrapper();
 
   // Moses::InputType* GetInput(Moses::InputType *inputType);
-  boost::shared_ptr<InputType> ReadInput();
+
+  boost::shared_ptr<InputType>
+  ReadInput(boost::shared_ptr<std::vector<std::string> >* cw = NULL);
 
   Moses::OutputCollector *GetSingleBestOutputCollector() {
     return m_singleBestOutputCollector.get();
@@ -181,6 +187,21 @@ public:
   // post editing
   std::ifstream *spe_src, *spe_trg, *spe_aln;
 
+  std::list<boost::shared_ptr<InputType> > const& GetPastInput() const {
+    return m_past_input;
+  }
+
+  std::list<boost::shared_ptr<InputType> > const& GetFutureInput() const {
+    return m_future_input;
+  }
+  size_t GetLookAhead() const {
+    return m_look_ahead;
+  }
+
+  size_t GetLookBack() const {
+    return m_look_back;
+  }
+
 private:
   template<class itype>
   boost::shared_ptr<InputType>
@@ -189,8 +210,8 @@ private:
   boost::shared_ptr<InputType>
   GetBufferedInput();
 
-  void
-  set_context_for(InputType& source);
+  boost::shared_ptr<std::vector<std::string> >
+  GetCurrentContextWindow() const;
 };
 
 template<class itype>
@@ -205,15 +226,15 @@ BufferInput()
     m_future_input.pop_front();
     m_buffered_ahead -= ret->GetSize();
   } else {
-    source.reset(new itype);
-    if (!source->Read(*m_inputStream, *m_inputFactorOrder))
+    source.reset(new itype(m_options));
+    if (!source->Read(*m_inputStream))
       return ret;
     ret = source;
   }
-
   while (m_buffered_ahead < m_look_ahead) {
-    source.reset(new itype);
-    if (!source->Read(*m_inputStream, *m_inputFactorOrder)) break;
+    source.reset(new itype(m_options));
+    if (!source->Read(*m_inputStream))
+      break;
     m_future_input.push_back(source);
     m_buffered_ahead += source->GetSize();
   }

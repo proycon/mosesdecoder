@@ -26,8 +26,8 @@
 #include <boost/test/unit_test.hpp>
 #include <boost/assign/list_of.hpp>
 
-//#include <unordered_set>
-//#include <unordered_map>
+#include <unordered_set>
+#include <unordered_map>
 
 using namespace MosesTraining;
 using namespace std;
@@ -95,6 +95,7 @@ T adder(T first, Args... args)
   return first + adder(args...);
 }
 
+
 BOOST_AUTO_TEST_CASE(manager_config_domain)
 {
   checkDomainConfigured<RatioDomainFeature>
@@ -110,7 +111,6 @@ BOOST_AUTO_TEST_CASE(manager_config_domain)
   checkDomainConfigured<SparseSubsetDomainFeature>
   (boost::assign::list_of("--SparseDomainSubset")("/dev/null"));
 
-  /*
   // C++11 testing
   unordered_set<int> s;
   s.insert(4);
@@ -118,7 +118,7 @@ BOOST_AUTO_TEST_CASE(manager_config_domain)
   s.insert(4);
   s.insert(1);
 
-  for (auto i: s) {
+for (auto i: s) {
     cerr << i << " ";
   }
 
@@ -127,7 +127,7 @@ BOOST_AUTO_TEST_CASE(manager_config_domain)
   m["ba"] = 6;
   m["aabc"] = 7;
 
-  for (auto i: m) {
+for (auto i: m) {
     cerr << i.first << "=" << i.second << " ";
   }
 
@@ -135,6 +135,6 @@ BOOST_AUTO_TEST_CASE(manager_config_domain)
 
   std::string s1 = "x", s2 = "aa", s3 = "bb", s4 = "yy";
   std::string ssum = adder(s1, s2, s3, s4);
-  */
+
 }
 

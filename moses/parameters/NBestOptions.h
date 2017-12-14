@@ -1,10 +1,12 @@
-// -*- mode: c++; cc-style: gnu -*-
+// -*- mode: c++; indent-tabs-mode: nil; tab-width: 2 -*-
+#pragma once
 #include <string>
-
+#include "OptionsBaseClass.h"
 namespace Moses
 {
 
-struct NBestOptions {
+struct NBestOptions : public OptionsBaseClass
+{
   size_t nbest_size;
   size_t factor;
   bool enabled;
@@ -22,6 +24,9 @@ struct NBestOptions {
 
   bool init(Parameter const& param);
 
+  bool update(std::map<std::string,xmlrpc_c::value>const& param);
+
+  NBestOptions();
 };
 
 }

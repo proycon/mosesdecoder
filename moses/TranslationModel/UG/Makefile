@@ -17,7 +17,7 @@ echo $$d
 endef
 
 MOSES_ROOT := $(shell $(find_moses_root))
-
+$(info MOSES_ROOT=${MOSES_ROOT})
 # ===============================================================================
 # COMPILATION PREFERENCES
 # ===============================================================================
@@ -35,7 +35,9 @@ CXXFLAGS += -DMAX_NUM_FACTORS=4
 CXXFLAGS += -DKENLM_MAX_ORDER=5
 CXXFLAGS += -DWITH_THREADS
 CXXFLAGS += -DNO_MOSES
-CXXFLAGS += -I${MOSES_ROOT} -I.
+# CXXFLAGS += -DMMT
+CXXFLAGS += -I$(dir ${MOSES_ROOT})mmt-only
+CXXFLAGS += -I${MOSES_ROOT} -I. -I${MOSES_ROOT}/opt/include 
 
 ifeq ($(variant),debug)
 CXXFLAGS += -ggdb -O0
@@ -45,7 +47,7 @@ else ifeq ($(variant),syntax)
 CXXFLAGS += -fsyntax-only
 endif
 
-# LDFLAGS  = -L${MOSES_ROOT}/lib -L ./lib/
+LDFLAGS  = -L${MOSES_ROOT}/opt/lib -L./lib/ 
 
 # WDIR = build/$(variant)/${HOSTTYPE}/${KERNEL}
 WDIR = build/$(variant)
@@ -60,12 +62,21 @@ nil:
 
 # libraries required
 
-LIBS  = m z bz2 pthread dl ${BOOSTLIBS}
-BOOSTLIBS := thread system filesystem program_options iostreams
-BOOSTLIBS := $(addprefix boost_,${BOOSTLIBS})
-ifdef ($(BOOSTLIBTAG),"")
+BOOSTLIBS :=  program_options iostreams thread system filesystem
+BOOSTLIBS := $(addprefix -lboost_,${BOOSTLIBS})
+ifeq ($(BOOSTLIBTAG),"")
 BOOSTLIBS := $(addsuffix ${BOOSTLIBTAG},${BOOSTLIBS})
 endif
+
+STATIC_LIBS   = m bz2 z dl rt 
+DYNAMIC_LIBS  = pthread 
+#DYNAMIC_LIBS  += tcmalloc
+
+LIBS  = -Wl,-B$(link) 
+LIBS += -L${MOSES_ROOT}/opt/lib ${BOOSTLIBS}
+LIBS += $(addprefix -l,${STATIC_LIBS})
+LIBS += -Wl,-Bdynamic
+LIBS += $(addprefix -l,${DYNAMIC_LIBS})
 
 cc2obj = $(addsuffix .o,$(patsubst ${MOSES_ROOT}%,$(WDIR)%,\
 	 	        $(patsubst .%,$(WDIR)%,$(basename $1))))
@@ -78,7 +89,7 @@ DEP += $(basename $(call cc2obj,$1)).d
 $(call cc2obj,$1): $1
 	@echo -e "COMPILING $1"
 	@mkdir -p $$(@D)
-	@${CXX} ${CXXFLAGS} -MD -MP -c $$< -o $$@
+	${CXX} ${CXXFLAGS} -MD -MP -c $$< -o $$@
 
 endef
 
@@ -89,7 +100,7 @@ $(call cc2exe,$1): $(call cc2obj,$1) $(LIBOBJ)
 ifneq ($(variant),syntax)
 	@echo -e "LINKING $$@"
 	@mkdir -p $${@D}
-	@${CXX} ${CXXFLAGS} -o $$@ $(LIBOBJ) $(addprefix -l,${LIBS}) $$<
+	${CXX} ${CXXFLAGS} -o $$@ $$< $(LIBOBJ) ${LIBS} 
 endif
 
 endef
@@ -102,13 +113,14 @@ skip += spe-check-coverage3.cc
 skip += mmsapt.cpp
 skip += ug_stringdist.cc
 skip += ug_splice_arglist.cc
-skip += ug_lexical_reordering.cc
-skip += ug_sampling_bias.cc
+# skip += ug_lexical_reordering.cc
 
 # objects from elsewhere in the moses tree that are needed
-extra = ${MOSES_ROOT}/util/exception.cc
+extra  = ${MOSES_ROOT}/util/exception.cc 
+extra += ${MOSES_ROOT}/util/integer_to_string.cc
 
 $(foreach f,$(skip),$(eval broken+=$(shell find -name $f)))
+broken += $(wildcard ./mm/stashed/*)
 
 $(info SCANNING DIRECTORY TREE FOR FILES)
 find_cfiles = find -name '*.cc' -or -name '*.cpp'
@@ -121,6 +133,12 @@ LIBOBJ = $(call cc2obj,$(filter-out $(PROGRAMS),$(CFILES) $(extra)))
 
 $(foreach f,$(CFILES) $(extra),$(eval $(call compile,$f)))
 $(foreach p,$(PROGRAMS),$(eval $(call build,$p)))
+
+ifeq ($(filter relink,$(MAKECMDGOALS)),relink)
+.PHONY: relink
+$(foreach p,$(PROGRAMS),$(eval .PHONY: $(call cc2exe,$p)))
+relink: $(filter-out relink,$(MAKECMDGOALS))
+endif
 
 -include $(DEP)
 

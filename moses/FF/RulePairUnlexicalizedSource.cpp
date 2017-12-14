@@ -4,7 +4,7 @@
 #include "moses/ScoreComponentCollection.h"
 #include "moses/FactorCollection.h"
 #include <sstream>
-
+#include "util/string_stream.hh"
 
 using namespace std;
 
@@ -12,7 +12,7 @@ namespace Moses
 {
 
 RulePairUnlexicalizedSource::RulePairUnlexicalizedSource(const std::string &line)
-  : StatelessFeatureFunction(0, line)
+  : StatelessFeatureFunction(1, line)
   , m_glueRules(false)
   , m_nonGlueRules(true)
   , m_glueTargetLHSStr("Q")
@@ -41,7 +41,7 @@ void RulePairUnlexicalizedSource::SetParameter(const std::string& key, const std
 void RulePairUnlexicalizedSource::EvaluateInIsolation(const Phrase &source
     , const TargetPhrase &targetPhrase
     , ScoreComponentCollection &scoreBreakdown
-    , ScoreComponentCollection &estimatedFutureScore) const
+    , ScoreComponentCollection &estimatedScores) const
 {
   const Factor* targetPhraseLHS = targetPhrase.GetTargetLHS()[0];
   if ( !m_glueRules && (targetPhraseLHS == m_glueTargetLHS) ) {
@@ -58,7 +58,7 @@ void RulePairUnlexicalizedSource::EvaluateInIsolation(const Phrase &source
     }
   }
 
-  ostringstream namestr;
+  util::StringStream namestr;
 
   for (size_t posT=0; posT<targetPhrase.GetSize(); ++posT) {
     const Word &wordT = targetPhrase.GetWord(posT);
@@ -81,6 +81,9 @@ void RulePairUnlexicalizedSource::EvaluateInIsolation(const Phrase &source
   }
 
   scoreBreakdown.PlusEquals(this, namestr.str(), 1);
+  if ( targetPhraseLHS != m_glueTargetLHS ) {
+    scoreBreakdown.PlusEquals(this, 1);
+  }
 }
 
 }

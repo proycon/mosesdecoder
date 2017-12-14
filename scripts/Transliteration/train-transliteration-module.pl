@@ -108,7 +108,7 @@ else {
 
 # create model
 
-print "Training Transliteration Module - End ".`date`;
+print STDERR "Training Transliteration Module - End ".`date`;
 
 sub learn_transliteration_model{
 
@@ -116,82 +116,82 @@ sub learn_transliteration_model{
 
    `cp $OUT_DIR/training/corpus$t.$OUTPUT_EXTENSION $OUT_DIR/lm/target`;
 
-   print "Align Corpus\n";
+   print STDERR "Align Corpus\n";
 
-  `$MOSES_SRC_DIR/scripts/training/train-model.perl \
-      -mgiza -mgiza-cpus 10 -dont-zip -last-step 1 \
-      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \
-      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \
-      -score-options '--KneserNey' -corpus $OUT_DIR/training/corpus$t \
+  `$MOSES_SRC_DIR/scripts/training/train-model.perl \\
+      -mgiza -mgiza-cpus 10 -dont-zip -last-step 1 \\
+      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \\
+      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \\
+      -score-options '--KneserNey' -corpus $OUT_DIR/training/corpus$t \\
       -corpus-dir $OUT_DIR/training/prepared`;
 
-  `$MOSES_SRC_DIR/scripts/training/train-model.perl -mgiza -mgiza-cpus 10 \
-      -dont-zip -first-step 2 -last-step 2 \
-      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \
-      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \
-      -score-options '--KneserNey' -corpus-dir $OUT_DIR/training/prepared \
+  `$MOSES_SRC_DIR/scripts/training/train-model.perl -mgiza -mgiza-cpus 10 \\
+      -dont-zip -first-step 2 -last-step 2 \\
+      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \\
+      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \\
+      -score-options '--KneserNey' -corpus-dir $OUT_DIR/training/prepared \\
       -giza-e2f $OUT_DIR/training/giza -direction 2`;
 
-  `$MOSES_SRC_DIR/scripts/training/train-model.perl \
-      -mgiza -mgiza-cpus 10 -dont-zip -first-step 2 -last-step 2 \
-      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \
-      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \
-      -score-options '--KneserNey' -corpus-dir $OUT_DIR/training/prepared \
+  `$MOSES_SRC_DIR/scripts/training/train-model.perl \\
+      -mgiza -mgiza-cpus 10 -dont-zip -first-step 2 -last-step 2 \\
+      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \\
+      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \\
+      -score-options '--KneserNey' -corpus-dir $OUT_DIR/training/prepared \\
       -giza-f2e $OUT_DIR/training/giza-inverse -direction 1`;
 
-  `$MOSES_SRC_DIR/scripts/training/train-model.perl \
-      -mgiza -mgiza-cpus 10 -dont-zip -first-step 3 -last-step 3 \
-      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \
-      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \
-      -score-options '--KneserNey' -giza-e2f $OUT_DIR/training/giza \
-      -giza-f2e $OUT_DIR/training/giza-inverse \
-      -alignment-file $OUT_DIR/model/aligned \
+  `$MOSES_SRC_DIR/scripts/training/train-model.perl \\
+      -mgiza -mgiza-cpus 10 -dont-zip -first-step 3 -last-step 3 \\
+      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \\
+      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \\
+      -score-options '--KneserNey' -giza-e2f $OUT_DIR/training/giza \\
+      -giza-f2e $OUT_DIR/training/giza-inverse \\
+      -alignment-file $OUT_DIR/model/aligned \\
       -alignment-stem $OUT_DIR/model/aligned -alignment grow-diag-final-and`;
 
-  print "Train Translation Models\n";
+  print STDERR "Train Translation Models\n";
 
- `$MOSES_SRC_DIR/scripts/training/train-model.perl \
-     -mgiza -mgiza-cpus 10 -dont-zip -first-step 4 -last-step 4 \
-     -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \
-     -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \
-     -score-options '--KneserNey' -lexical-file $OUT_DIR/model/lex \
-     -alignment-file $OUT_DIR/model/aligned \
-     -alignment-stem $OUT_DIR/model/aligned \
+ `$MOSES_SRC_DIR/scripts/training/train-model.perl \\
+     -mgiza -mgiza-cpus 10 -dont-zip -first-step 4 -last-step 4 \\
+     -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \\
+     -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \\
+     -score-options '--KneserNey' -lexical-file $OUT_DIR/model/lex \\
+     -alignment-file $OUT_DIR/model/aligned \\
+     -alignment-stem $OUT_DIR/model/aligned \\
      -corpus $OUT_DIR/training/corpus$t`;
 
-  `$MOSES_SRC_DIR/scripts/training/train-model.perl \
-      -mgiza -mgiza-cpus 10 -dont-zip -first-step 5 -last-step 5 \
-      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \
-      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \
-      -score-options '--KneserNey' -alignment-file $OUT_DIR/model/aligned \
-      -alignment-stem $OUT_DIR/model/aligned -extract-file \
+  `$MOSES_SRC_DIR/scripts/training/train-model.perl \\
+      -mgiza -mgiza-cpus 10 -dont-zip -first-step 5 -last-step 5 \\
+      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \\
+      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \\
+      -score-options '--KneserNey' -alignment-file $OUT_DIR/model/aligned \\
+      -alignment-stem $OUT_DIR/model/aligned -extract-file \\
       $OUT_DIR/model/extract -corpus $OUT_DIR/training/corpus$t`;
 
-  `$MOSES_SRC_DIR/scripts/training/train-model.perl \
-      -mgiza -mgiza-cpus 10 -dont-zip -first-step 6 -last-step 6 \
-      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \
-      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \
-      -score-options '--KneserNey' -extract-file $OUT_DIR/model/extract \
-      -lexical-file $OUT_DIR/model/lex -phrase-translation-table \
+  `$MOSES_SRC_DIR/scripts/training/train-model.perl \\
+      -mgiza -mgiza-cpus 10 -dont-zip -first-step 6 -last-step 6 \\
+      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \\
+      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \\
+      -score-options '--KneserNey' -extract-file $OUT_DIR/model/extract \\
+      -lexical-file $OUT_DIR/model/lex -phrase-translation-table \\
       $OUT_DIR/model/phrase-table`;
 
-  print "Train Language Models\n";
+  print STDERR "Train Language Models\n";
 
-  `$SRILM_DIR/ngram-count \
-      -order 5 -interpolate -kndiscount -addsmooth1 0.0 -unk \
+  `$SRILM_DIR/ngram-count \\
+      -order 5 -interpolate -kndiscount -addsmooth1 0.0 -unk \\
       -text $OUT_DIR/lm/target -lm $OUT_DIR/lm/targetLM`;
 
-  `$MOSES_SRC_DIR/bin/build_binary \
+  `$MOSES_SRC_DIR/bin/build_binary \\
       $OUT_DIR/lm/targetLM $OUT_DIR/lm/targetLM.bin`;
 
-  print "Create Config File\n";
+  print STDERR "Create Config File\n";
 
-  `$MOSES_SRC_DIR/scripts/training/train-model.perl \
-      -mgiza -mgiza-cpus 10 -dont-zip -first-step 9 \
-      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \
-      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \
-      -score-options '--KneserNey' \
-      -phrase-translation-table $OUT_DIR/model/phrase-table \
+  `$MOSES_SRC_DIR/scripts/training/train-model.perl \\
+      -mgiza -mgiza-cpus 10 -dont-zip -first-step 9 \\
+      -external-bin-dir $EXTERNAL_BIN_DIR -f $INPUT_EXTENSION \\
+      -e $OUTPUT_EXTENSION -alignment grow-diag-final-and -parts 5 \\
+      -score-options '--KneserNey' \\
+      -phrase-translation-table $OUT_DIR/model/phrase-table \\
       -config $OUT_DIR/model/moses.ini -lm 0:5:$OUT_DIR/lm/targetLM.bin:8`;
 
 }
@@ -216,7 +216,7 @@ sub train_transliteration_module{
 
    `mkdir $OUT_DIR/model`;
    `mkdir $OUT_DIR/lm`;
-   print "Preparing Corpus\n";
+   print STDERR "Preparing Corpus\n";
    `$MOSES_SRC_DIR/scripts/Transliteration/corpusCreator.pl $OUT_DIR 1-1.$INPUT_EXTENSION-$OUTPUT_EXTENSION.mined-pairs $INPUT_EXTENSION $OUTPUT_EXTENSION`;
 
    if (-e "$OUT_DIR/training/corpusA.$OUTPUT_EXTENSION")
@@ -228,7 +228,7 @@ sub train_transliteration_module{
     learn_transliteration_model("");
    }
 
-   print "Running Tuning for Transliteration Module\n";
+   print STDERR "Running Tuning for Transliteration Module\n";
 
     `touch $OUT_DIR/tuning/moses.table.ini`;
 
@@ -240,7 +240,7 @@ sub train_transliteration_module{
 
     `$MOSES_SRC_DIR/scripts/ems/support/substitute-filtered-tables.perl $OUT_DIR/tuning/filtered/moses.ini < $OUT_DIR/model/moses.ini > $OUT_DIR/tuning/moses.filtered.ini`;
 
-    `$MOSES_SRC_DIR/scripts/training/mert-moses.pl $OUT_DIR/tuning/input $OUT_DIR/tuning/reference $DECODER $OUT_DIR/tuning/moses.filtered.ini --nbest 100 --working-dir $OUT_DIR/tuning/tmp  --decoder-flags "-threads 16 -drop-unknown -v 0 -distortion-limit 0" --rootdir $MOSES_SRC_DIR/scripts -mertdir $MOSES_SRC_DIR/mert -threads=16 --no-filter-phrase-table`;
+    `$MOSES_SRC_DIR/scripts/training/mert-moses.pl $OUT_DIR/tuning/input $OUT_DIR/tuning/reference $DECODER $OUT_DIR/tuning/moses.filtered.ini --nbest 100 --working-dir $OUT_DIR/tuning/tmp  --decoder-flags "-threads 16 -drop-unknown -v 0 -distortion-limit 0" --rootdir $MOSES_SRC_DIR/scripts -mertdir $MOSES_SRC_DIR/bin -threads=16 --no-filter-phrase-table`;
 
     `cp $OUT_DIR/tuning/tmp/moses.ini $OUT_DIR/tuning/moses.ini`;
 
@@ -258,12 +258,12 @@ my $count = 0;
 my $l1 = 1;
 my $l2 = 1;
 
-print "Creating Model\n";
+print STDERR "Creating Model\n";
 
-print "Extracting 1-1 Alignments\n";
+print STDERR "Extracting 1-1 Alignments\n";
 `$MOSES_SRC_DIR/bin/1-1-Extraction $OUT_DIR/f $OUT_DIR/e $OUT_DIR/a > $OUT_DIR/1-1.$inp_ext-$op_ext`;
 
-print "Cleaning the list for Miner\n";
+print STDERR "Cleaning the list for Miner\n";
 
 `$MOSES_SRC_DIR/scripts/Transliteration/clean.pl $OUT_DIR/1-1.$inp_ext-$op_ext > $OUT_DIR/1-1.$inp_ext-$op_ext.cleaned`;
 
@@ -274,11 +274,11 @@ print "Cleaning the list for Miner\n";
 	}
 	else
 	{
-	print "Extracting Transliteration Pairs \n";
+	print STDERR "Extracting Transliteration Pairs \n";
 	 `$MOSES_SRC_DIR/bin/TMining $OUT_DIR/1-1.$inp_ext-$op_ext.cleaned > $OUT_DIR/1-1.$inp_ext-$op_ext.pair-probs`;
 	}
 
-print "Selecting Transliteration Pairs with threshold 0.5 \n";
+print STDERR "Selecting Transliteration Pairs with threshold 0.5 \n";
 `echo 0.5 | $MOSES_SRC_DIR/scripts/Transliteration/threshold.pl $OUT_DIR/1-1.$inp_ext-$op_ext.pair-probs > $OUT_DIR/1-1.$inp_ext-$op_ext.mined-pairs`;
 
 }
@@ -289,7 +289,7 @@ sub reduce_factors {
 
     my @INCLUDE = sort {$a <=> $b} split(/,/,$factors);
 
-    print "Reducing factors to produce $reduced  @ ".`date`;
+    print STDERR "Reducing factors to produce $reduced  @ ".`date`;
     while(-e $reduced.".lock") {
 	sleep(10);
     }

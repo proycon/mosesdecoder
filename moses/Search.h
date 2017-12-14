@@ -6,6 +6,8 @@
 #include "TranslationOption.h"
 #include "Phrase.h"
 #include "InputPath.h"
+#include "Bitmaps.h"
+#include "Timer.h"
 
 namespace Moses
 {
@@ -35,14 +37,20 @@ public:
   explicit Search(Manager& manager);
   virtual ~Search() {}
 
-  // Factory method
-  static Search *CreateSearch(Manager& manager, const InputType &source, SearchAlgorithm searchAlgorithm,
-                              const TranslationOptionCollection &transOptColl);
-
 protected:
   Manager& m_manager;
+  const InputType &m_source;
+  AllOptions const& m_options;
+
   InputPath m_inputPath; // for initial hypo
   TranslationOption m_initialTransOpt; /**< used to seed 1st hypo */
+  Bitmaps m_bitmaps;
+
+  /** flag indicating that decoder ran out of time (see switch -time-out) */
+  size_t interrupted_flag;
+
+  Timer m_timer;
+  bool out_of_time();
 };
 
 }

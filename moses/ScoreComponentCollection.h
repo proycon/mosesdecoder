@@ -1,6 +1,4 @@
-// -*- c++ -*-
-// $Id$
-
+// -*- mode: c++; indent-tabs-mode: nil; tab-width:2  -*-
 /***********************************************************************
 Moses - factored phrase-based language decoder
 Copyright (C) 2006 University of Edinburgh
@@ -249,6 +247,14 @@ public:
     }
   }
 
+  void PlusEquals(const FeatureFunction* sp, float scores[]) {
+    size_t numScores = sp->GetNumScoreComponents();
+    size_t offset = sp->GetIndex();
+    for (size_t i = 0; i < numScores; ++i) {
+      m_scores[i + offset] += scores[i];
+    }
+  }
+
   //! Special version PlusEquals(ScoreProducer, vector<float>)
   //! to add the score from a single ScoreProducer that produces
   //! a single value
@@ -282,6 +288,8 @@ public:
   }
 
   void Assign(const FeatureFunction* sp, const std::vector<float>& scores);
+
+  void Assign(const FeatureFunction* sp, size_t idx, float sc);
 
   //! Special version Assign(ScoreProducer, vector<float>)
   //! to add the score from a single ScoreProducer that produces
@@ -433,10 +441,9 @@ public:
     m_scores.merge(other.m_scores);
   }
 
-  void OutputAllFeatureScores(std::ostream &out) const;
-  void OutputFeatureScores( std::ostream& out
-                            , const Moses::FeatureFunction *ff
-                            , std::string &lastName ) const;
+  void OutputAllFeatureScores(std::ostream &out, bool with_labels) const;
+  void OutputFeatureScores(std::ostream& out, Moses::FeatureFunction const* ff,
+                           std::string &lastName, bool with_labels) const;
 
 #ifdef MPI_ENABLE
 public:

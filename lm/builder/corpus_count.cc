@@ -5,7 +5,7 @@
 #include "lm/lm_exception.hh"
 #include "lm/vocab.hh"
 #include "lm/word_index.hh"
-#include "util/fake_ofstream.hh"
+#include "util/file_stream.hh"
 #include "util/file.hh"
 #include "util/file_piece.hh"
 #include "util/murmur_hash.hh"
@@ -14,9 +14,6 @@
 #include "util/stream/chain.hh"
 #include "util/stream/timer.hh"
 #include "util/tokenize_piece.hh"
-
-#include <boost/unordered_set.hpp>
-#include <boost/unordered_map.hpp>
 
 #include <functional>
 

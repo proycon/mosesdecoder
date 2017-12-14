@@ -23,12 +23,12 @@ public:
   }
 
   void operator()(const InputType &input
-                  , const InputPath &inputPath
-                  , const WordsRange &sourceRange
-                  , Discriminative::Classifier &classifier) const {
+                  , const Range &sourceRange
+                  , Discriminative::Classifier &classifier
+                  , Discriminative::FeatureVector &outFeatures) const {
     const Features& features = *m_tls.GetStored();
     for (size_t i = 0; i < features.size(); i++) {
-      classifier.AddLabelIndependentFeature("srcext^" + features[i]);
+      outFeatures.push_back(classifier.AddLabelIndependentFeature("srcext^" + features[i]));
     }
   }
 
@@ -40,7 +40,7 @@ public:
   }
 
   virtual void InitializeForInput(ttasksptr const& ttask) {
-    InputType const& source = ttask->GetSource();
+    InputType const& source = *(ttask->GetSource().get());
     UTIL_THROW_IF2(source.GetType() != TabbedSentenceInput,
                    "This feature function requires the TabbedSentence input type");
 

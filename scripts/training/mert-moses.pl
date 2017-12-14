@@ -14,6 +14,7 @@
 
 # Excerpts from revision history
 
+# 15 Aug 2017 option added: --transform-decoded-file (Joerg Tiedemann)
 # Sept 2011   multi-threaded mert (Barry Haddow)
 # 3 Aug 2011  Added random directions, historic best, pairwise ranked (PK)
 # Jul 2011    simplifications (Ondrej Bojar)
@@ -57,6 +58,7 @@ use FindBin qw($RealBin);
 use File::Basename;
 use File::Path;
 use File::Spec;
+use File::Copy qw(move);
 use Cwd;
 
 my $SCRIPTS_ROOTDIR = $RealBin;
@@ -81,10 +83,12 @@ my $___LATTICE_SAMPLES = 0;
 my $queue_flags = "-hard";  # extra parameters for parallelizer
       # the -l ws0ssmt was relevant only to JHU 2006 workshop
 my $___JOBS = undef; # if parallel, number of jobs to use (undef or <= 0 -> serial)
+my $___CACHE_MODEL = undef; # if models need to be copied to local disk from NFS
 my $___DECODER_FLAGS = ""; # additional parametrs to pass to the decoder
 my $continue = 0; # should we try to continue from the last saved step?
 my $skip_decoder = 0; # and should we skip the first decoder run (assuming we got interrupted during mert)
 my $___FILTER_PHRASE_TABLE = 1; # filter phrase table
+my $___TRANSFORM_DECODED_FILE = 0; # transform decoded file before scoring (script or command)
 my $___PREDICTABLE_SEEDS = 0;
 my $___START_WITH_HISTORIC_BESTS = 0; # use best settings from all previous iterations as starting points [Foster&Kuhn,2009]
 my $___RANDOM_DIRECTIONS = 0; # search in random directions only
@@ -165,6 +169,10 @@ my $prev_aggregate_nbl_size = -1; # number of previous step to consider when loa
                                   # and so on
 my $maximum_iterations = 25;
 
+# Multiple instance parallelization
+my $___MULTI_MOSES = "$SCRIPTS_ROOTDIR/generic/multi_moses.py";
+my $___USE_MULTI_MOSES = undef;
+
 # Simulated post-editing
 my $___MOSES_SIM_PE = "$SCRIPTS_ROOTDIR/generic/moses_sim_pe.py";
 my $___DEV_SYMAL = undef;
@@ -183,6 +191,7 @@ GetOptions(
   "lattice-samples=i" => \$___LATTICE_SAMPLES,
   "queue-flags=s" => \$queue_flags,
   "jobs=i" => \$___JOBS,
+  "cache-model=s" => \$___CACHE_MODEL,
   "decoder-flags=s" => \$___DECODER_FLAGS,
   "continue" => \$continue,
   "skip-decoder" => \$skip_decoder,
@@ -205,6 +214,7 @@ GetOptions(
   "mosesparallelcmd=s" => \$moses_parallel_cmd, # allow to override the default location
   "old-sge" => \$old_sge, #passed to moses-parallel
   "filter-phrase-table!" => \$___FILTER_PHRASE_TABLE, # (dis)allow of phrase tables
+  "transform-decoded-file=s" => \$___TRANSFORM_DECODED_FILE, # transform decoded file to convert to standard word level format (script or command line)
   "predictable-seeds" => \$___PREDICTABLE_SEEDS, # make random restarts deterministic
   "historic-bests" => \$___START_WITH_HISTORIC_BESTS, # use best settings from all previous iterations as starting points
   "random-directions" => \$___RANDOM_DIRECTIONS, # search only in random directions
@@ -225,7 +235,8 @@ GetOptions(
   "promix-training=s" => \$__PROMIX_TRAINING,
   "promix-table=s" => \@__PROMIX_TABLES,
   "threads=i" => \$__THREADS,
-  "spe-symal=s" => \$___DEV_SYMAL
+  "spe-symal=s" => \$___DEV_SYMAL,
+  "multi-moses" => \$___USE_MULTI_MOSES
 ) or exit(1);
 
 # the 4 required parameters can be supplied on the command line directly
@@ -245,6 +256,7 @@ Options:
   --nbest=100            ... how big nbestlist to generate
   --lattice-samples      ... how many lattice samples (Chatterjee & Cancedda, emnlp 2010)
   --jobs=N               ... set this to anything to run moses in parallel
+  --cache-model=STRING   ... local directory into which copy model before running decoder
   --mosesparallelcmd=STR ... use a different script instead of moses-parallel
   --queue-flags=STRING   ... anything you with to pass to qsub, eg.
                              '-l ws06osssmt=true'. The default is: '-hard'
@@ -322,6 +334,11 @@ Options:
                                 (parameter sets factor [0;1] given to current weights)
   --spe-symal=SYMAL      ... Use simulated post-editing when decoding.
                              (SYMAL aligns input to refs)
+  --multi-moses          ... Use multiple instances of moses instead of threads for decoding
+                             (Use with --decoder-flags='-threads N' to get N instances, each of
+                              which uses a single thread (overrides threads in moses.ini))
+  --transform-decoded-file=STRING    ... transform n-best list before scoring, 
+                                         STRING='bpe', script or command for transforming
 ";
   exit 1;
 }
@@ -809,6 +826,27 @@ while (1) {
       $lsamp_file      = "$lsamp_file.gz";
       $nbest_file      = "$combined_file";
     }
+    ## tranforming decoded file (n-best list)
+    if ($___TRANSFORM_DECODED_FILE) {
+        my $trans_file=$nbest_file.".transformed";
+	## original code by Anoop Kunchukuttan
+        ##Command to run: cat $nbest_file | sed 's, ||| ,""""",g' | awk -F '"""""' 'BEGIN{OFS=" ||| "}{gsub (" ", "", $2);gsub ("\\^"," ",$2);print}' > $trans_file 
+        ## my $trans_cmd="cat $nbest_file | sed 's, ||| ,!!!!!,g' | awk -F '!!!!!' 'BEGIN{OFS=\" ||| \"}{gsub (\" \", \"\", \$2);gsub (\"\\\\^\",\" \",\$2);print}' > $trans_file";
+	my $trans_cmd;
+	## check if the argument is a file or includes space
+	## if there are spaces then assume that it specifies the command to be run 
+	if ((-e $___TRANSFORM_DECODED_FILE) || ($___TRANSFORM_DECODED_FILE=~/ /)){
+	    $trans_cmd="cat $nbest_file | $___TRANSFORM_DECODED_FILE > $trans_file";
+	}
+	## otherwise assume BPE markup with @@
+	else{
+	    $trans_cmd="cat $nbest_file | sed 's/\@\@ //g'  > $trans_file";
+	}
+        print STDERR "Executing data transformation command: $trans_cmd \n";
+        safesystem($trans_cmd) or die "The data transformation failed \n";
+        move $trans_file, $nbest_file ;
+    }
+
     safesystem("gzip -f $nbest_file") or die "Failed to gzip run*out" unless $___HG_MIRA;
     $nbest_file = $nbest_file.".gz";
   } else {
@@ -1143,7 +1181,7 @@ if($___RETURN_BEST_DEV) {
     }
     my $cmd = "$mert_eval_cmd --reference " . join(",", @references) . " $mert_extract_args $candidate";
     $cmd .= " -l $__REMOVE_SEGMENTATION" if defined( $__PROMIX_TRAINING);
-    safesystem("$cmd 2> /dev/null 1> $evalout");
+    &submit_or_exec($cmd, $evalout, "/dev/null", 1);
     open my $fh, '<', $evalout or die "Can't read $evalout : $!";
     my $bleu = <$fh>;
     chomp $bleu;
@@ -1291,6 +1329,7 @@ sub run_decoder {
       die "Hypergraph mira not supported by moses-parallel" if $___HG_MIRA;
       $decoder_cmd = "$moses_parallel_cmd $pass_old_sge -config $___CONFIG";
       $decoder_cmd .= " -inputtype $___INPUTTYPE" if defined($___INPUTTYPE);
+      $decoder_cmd .= " -cache-model $___CACHE_MODEL" if defined($___CACHE_MODEL);
       $decoder_cmd .= " -qsub-prefix mert$run -queue-parameters \"$queue_flags\" -decoder-parameters \"$___DECODER_FLAGS $decoder_config\" $lsamp_cmd -n-best-list \"$filename $___N_BEST_LIST_SIZE distinct\" -input-file $___DEV_F -jobs $___JOBS -decoder $___DECODER > run$run.out";
     } else {
       my $nbest_list_cmd = "-n-best-list $filename $___N_BEST_LIST_SIZE distinct";
@@ -1301,6 +1340,10 @@ sub run_decoder {
       $decoder_cmd = "$___DECODER $___DECODER_FLAGS  -config $___CONFIG";
       $decoder_cmd .= " -inputtype $___INPUTTYPE" if defined($___INPUTTYPE);
       $decoder_cmd .= " $decoder_config $lsamp_cmd $nbest_list_cmd  -input-file $___DEV_F";
+      if (defined $___USE_MULTI_MOSES) {
+        # If requested, prefix full decoder command with multi-moses wrapper
+        $decoder_cmd = "$___MULTI_MOSES $decoder_cmd";
+      }
       if (defined $___DEV_SYMAL) {
         # If simulating post-editing, route command through moses_sim_pe.py
         # Always use single (first) reference.  Simulated post-editing undefined for multiple references.
@@ -1380,9 +1423,18 @@ sub get_featlist_from_moses {
     print STDERR "Using cached features list: $featlistfn\n";
   } else {
     print STDERR "Asking moses for feature names and values from $___CONFIG\n";
-    my $cmd = "$___DECODER $___DECODER_FLAGS -config $configfn";
+    my $cmd;
+    if ($___CACHE_MODEL) {
+      $cmd = "MOSES_INI=`$SCRIPTS_ROOTDIR/ems/support/cache-model.perl $configfn $___CACHE_MODEL` && ";
+      $configfn = "\$MOSES_INI";
+    }
+    $cmd .= "$___DECODER $___DECODER_FLAGS -config $configfn";
     $cmd .= " -inputtype $___INPUTTYPE" if defined($___INPUTTYPE);
     $cmd .= " -show-weights";
+    if (defined $___USE_MULTI_MOSES) {
+      # Pass moses command through multi-moses script to handle threads properly
+      $cmd = "$___MULTI_MOSES $cmd";
+    }
     print STDERR "Executing: $cmd\n";
     &submit_or_exec($cmd, $featlistfn, "/dev/null", 1);
   }
@@ -1510,7 +1562,7 @@ sub create_config {
     $___DECODER_FLAGS =~ s/^\s*|\s*$//;
     $___DECODER_FLAGS =~ s/\s+/ /;
     foreach (split(/ /, $___DECODER_FLAGS)) {
-      if (/^\-([^\d].*)$/) {
+      if (/^\--?([^\d].*)$/) {
         $parameter = $1;
       } else {
 				my $value = $_;
@@ -1600,7 +1652,7 @@ sub create_config {
   }
 
   # write all additional parameters
-  foreach my $parameter (keys %P) {
+  foreach my $parameter (sort keys %P) {
     print $out "\n[$parameter]\n";
     foreach (@{$P{$parameter}}) {
       print $out $_."\n";

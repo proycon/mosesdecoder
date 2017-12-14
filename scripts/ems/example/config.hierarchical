@@ -54,6 +54,11 @@ ttable-binarizer = "$moses-bin-dir/CreateOnDiskPt 1 1 4 100 2"
 input-tokenizer = "$moses-script-dir/tokenizer/tokenizer.perl -a -l $input-extension"
 output-tokenizer = "$moses-script-dir/tokenizer/tokenizer.perl -a -l $output-extension"
 
+# For Arabic tokenizer try Farasa (download: http://qatsdemo.cloudapp.net/farasa/)
+#  Abdelali, Darwish, Durrani, Mubarak (NAACL demo 2016)
+#  "Farasa: A Fast and Furious Segmenter for Arabic"
+#input-tokenizer = "$farasa-dir/farasa_moses.sh"
+
 # truecasers - comment out if you do not use the truecaser
 input-truecaser = $moses-script-dir/recaser/truecase.perl
 output-truecaser = $moses-script-dir/recaser/truecase.perl
@@ -89,7 +94,7 @@ detruecaser = $moses-script-dir/recaser/detruecase.perl
 ### multi-core settings
 # when the generic parallelizer is used, the number of cores
 # specified here 
-cores = 8
+cores = 4
 
 #################################################################
 # PARALLEL CORPUS PREPARATION: 
@@ -392,7 +397,7 @@ alignment-symmetrization-method = grow-diag-final-and
 # 
 #operation-sequence-model = "yes"
 #operation-sequence-model-order = 5
-#operation-sequence-model-settings = "-lmplz '$moses-src-dir/bin/lmplz -S 40% -T $working-dir/model/tmp'"
+#operation-sequence-model-settings = "-lmplz '$moses-src-dir/bin/lmplz -S 40%'"
 #
 # if OSM training should be skipped, point to OSM Model 
 #osm-model =
@@ -521,7 +526,7 @@ filter-settings = ""
 
 ### additional flags for the decoder
 #
-decoder-settings = ""
+decoder-settings = "-threads $cores"
 
 ### if tuning should be skipped, specify this here
 # and also point to a configuration file that contains
@@ -590,7 +595,7 @@ trainer = $moses-script-dir/recaser/train-truecaser.perl
 #   "-drop-unknown" for dropping unknown source words
 #   "-search-algorithm 1 -cube-pruning-pop-limit 5000 -s 5000" for cube pruning
 #
-#decoder-settings = ""
+decoder-settings = "-threads $cores"
 
 ### specify size of n-best list, if produced
 #

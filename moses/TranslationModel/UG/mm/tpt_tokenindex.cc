@@ -1,4 +1,4 @@
-// -*- c++ -*-
+// -*- mode: c++; indent-tabs-mode: nil; tab-width:2  -*-
 // (c) 2007-2013 Ulrich Germann
 #include <sstream>
 #include <cstring>
@@ -9,9 +9,10 @@
 #include <boost/pool/pool_alloc.hpp>
 
 #include "tpt_tokenindex.h"
+#include "ug_typedefs.h"
 
 using namespace std;
-namespace ugdiss
+namespace sapt
 {
 
   TokenIndex::
@@ -58,8 +59,8 @@ namespace ugdiss
     comp.base = reinterpret_cast<char const*>(endIdx);
     if (!unkToken.empty())
       {
-	Entry const* bla = lower_bound(startIdx,endIdx,unkToken.c_str(),comp);
-	unkId = ((bla < endIdx && unkToken == comp.base+bla->offset)
+        Entry const* bla = lower_bound(startIdx,endIdx,unkToken.c_str(),comp);
+        unkId = ((bla < endIdx && unkToken == comp.base+bla->offset)
                  ? bla->id
                  : numTokens);
       }
@@ -97,10 +98,10 @@ namespace ugdiss
   {
     if (startIdx != endIdx)
       {
-	Entry const* bla = lower_bound(startIdx,endIdx,p,comp);
-	if (bla != endIdx && !strcmp(comp.base+bla->offset,p))
-	  return bla->id;
-	if (!dynamic) return unkId;
+        Entry const* bla = lower_bound(startIdx,endIdx,p,comp);
+        if (bla != endIdx && !strcmp(comp.base+bla->offset,p))
+          return bla->id;
+        if (!dynamic) return unkId;
       }
     else if (!dynamic) return strcmp(p,"NULL") && unkId;
     
@@ -154,10 +155,10 @@ namespace ugdiss
   {
     if (!ridx.size())
       {
-	boost::lock_guard<boost::mutex> lk(*this->lock);
-	// Someone else (multi-threading!) may have created the 
-	// reverse index in the meantime, so let's check again
-	if (!ridx.size()) ridx = reverseIndex();
+        boost::lock_guard<boost::mutex> lk(*this->lock);
+        // Someone else (multi-threading!) may have created the 
+        // reverse index in the meantime, so let's check again
+        if (!ridx.size()) ridx = reverseIndex();
       }
     if (id < ridx.size())
       return ridx[id];
@@ -174,8 +175,8 @@ namespace ugdiss
   {
     if (!ridx.size())
       {
-	boost::lock_guard<boost::mutex> lk(*this->lock);
-	if (!ridx.size()) ridx = reverseIndex();
+        boost::lock_guard<boost::mutex> lk(*this->lock);
+        if (!ridx.size()) ridx = reverseIndex();
       }
   }
 
@@ -186,8 +187,8 @@ namespace ugdiss
   {
     if (!ridx.size())
       {
-	boost::lock_guard<boost::mutex> lk(*this->lock);
-	if (!ridx.size()) ridx = reverseIndex();
+        boost::lock_guard<boost::mutex> lk(*this->lock);
+        if (!ridx.size()) ridx = reverseIndex();
       }
     if (id < ridx.size())
       return ridx[id];
@@ -203,8 +204,8 @@ namespace ugdiss
   {
     if (!ridx.size())
       {
-	boost::lock_guard<boost::mutex> lk(*this->lock);
-	if (!ridx.size()) ridx = reverseIndex();
+        boost::lock_guard<boost::mutex> lk(*this->lock);
+        if (!ridx.size()) ridx = reverseIndex();
       }
     ostringstream buf;
     for (size_t i = 0; i < v.size(); i++)
@@ -218,8 +219,8 @@ namespace ugdiss
   {
     if (!ridx.size())
       {
-	boost::lock_guard<boost::mutex> lk(*this->lock);
-	if (!ridx.size()) ridx = reverseIndex();
+        boost::lock_guard<boost::mutex> lk(*this->lock);
+        if (!ridx.size()) ridx = reverseIndex();
       }
     ostringstream buf;
     for (size_t i = 0; i < v.size(); i++)
@@ -233,8 +234,8 @@ namespace ugdiss
   {
     if (!ridx.size())
       {
-	boost::lock_guard<boost::mutex> lk(*this->lock);
-	if (!ridx.size()) ridx = reverseIndex();
+        boost::lock_guard<boost::mutex> lk(*this->lock);
+        if (!ridx.size()) ridx = reverseIndex();
       }
     ostringstream buf;
     if (start < stop)
@@ -250,8 +251,8 @@ namespace ugdiss
   {
     if (!ridx.size())
       {
-	boost::lock_guard<boost::mutex> lk(*this->lock);
-	if (!ridx.size()) ridx = reverseIndex();
+        boost::lock_guard<boost::mutex> lk(*this->lock);
+        if (!ridx.size()) ridx = reverseIndex();
       }
     ostringstream buf;
     if (start < stop)

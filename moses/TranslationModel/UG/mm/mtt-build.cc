@@ -30,7 +30,7 @@
 #include "moses/TranslationModel/UG/mm/ug_im_tsa.h"
 
 using namespace std;
-using namespace ugdiss;
+using namespace sapt;
 using namespace Moses;
 using namespace boost;
 using namespace boost::algorithm;
@@ -178,7 +178,7 @@ process_plain_input(ostream& out, vector<id_type> & s_index)
       s_index.push_back(totalWords);
       while (buf>>w)
 	{
-	  numwrite(out,get_id(SF,w));
+	  tpt::numwrite(out,get_id(SF,w));
 	  ++totalWords;
 	}
     }
@@ -226,9 +226,9 @@ numberize()
   ofstream out(tmpFile.c_str());
   filepos_type startIdx=0;
   id_type idxSize=0,totalWords=0;
-  numwrite(out,startIdx);   // place holder, to be filled at the end
-  numwrite(out,idxSize);    // place holder, to be filled at the end
-  numwrite(out,totalWords); // place holder, to be filled at the end
+  tpt::numwrite(out,startIdx);   // place holder, to be filled at the end
+  tpt::numwrite(out,idxSize);    // place holder, to be filled at the end
+  tpt::numwrite(out,totalWords); // place holder, to be filled at the end
 
   vector<id_type> s_index, p_index;
 
@@ -248,12 +248,13 @@ numberize()
     cerr << endl << "Writing index ... (" << index->size() << " chunks) ";
 
   startIdx = out.tellp();
-  for (size_t i = 0; i < index->size(); i++) numwrite(out,(*index)[i]);
+  for (size_t i = 0; i < index->size(); i++) 
+    tpt::numwrite(out,(*index)[i]);
   out.seekp(0);
   idxSize = index->size();
-  numwrite(out, startIdx);
-  numwrite(out, idxSize - 1);
-  numwrite(out, totalWords);
+  tpt::numwrite(out, startIdx);
+  tpt::numwrite(out, idxSize - 1);
+  tpt::numwrite(out, totalWords);
   out.close();
   if (!quiet) cerr << "done" << endl;
   return totalWords;
@@ -291,9 +292,9 @@ void remap()
   id_type totalWords, idxSize;
   boost::iostreams::mapped_file mtt(tmpFile);
   char const* p = mtt.data();
-  p = numread(p,idxOffset);
-  p = numread(p,idxSize);
-  p = numread(p,totalWords);
+  p = tpt::numread(p,idxOffset);
+  p = tpt::numread(p,idxSize);
+  p = tpt::numread(p,totalWords);
   if (is_conll)
     {
       vector<size_t> sf(SF.totalVocabSize(), 0);
@@ -358,17 +359,17 @@ void save_vocabs()
 }
 
 template<typename Token>
-size_t
+void
 build_mmTSA(string infile, string outfile)
 {
-  size_t mypid = fork();
-  if(mypid) return mypid;
+  // size_t mypid = fork();
+  // if(mypid) return mypid;
   boost::shared_ptr<mmTtrack<Token> > T(new mmTtrack<Token>(infile));
   bdBitset filter;
   filter.resize(T->size(),true);
   imTSA<Token> S(T,&filter,(quiet?NULL:&cerr));
   S.save_as_mm_tsa(outfile);
-  exit(0);
+  // exit(0);
 }
 
 bool
@@ -376,10 +377,10 @@ build_plaintext_tsas()
 {
   typedef L2R_Token<SimpleWordId> L2R;
   typedef R2L_Token<SimpleWordId> R2L;
-  size_t c = with_sfas + with_pfas;
+  // size_t c = with_sfas + with_pfas;
   if (with_sfas) build_mmTSA<L2R>(tmpFile, baseName + ".sfa");
   if (with_pfas) build_mmTSA<R2L>(tmpFile, baseName + ".pfa");
-  while (c--) wait(NULL);
+  // while (c--) wait(NULL);
   return true;
 }
 
@@ -408,7 +409,7 @@ void build_conll_tsas()
       build_mmTSA<ConllBottomUpToken<Conll_Lemma> >(mtt,bn+".dca-lemma");
       build_mmTSA<ConllBottomUpToken<Conll_MinPos> >(mtt,bn+".dca-minpos");
     }
-  while (c--) wait(NULL);
+  // while (c--) wait(NULL);
 }
 
 

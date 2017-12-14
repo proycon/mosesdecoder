@@ -1,6 +1,4 @@
-// -*- c++ -*-
-// $Id$
-
+// -*- mode: c++; indent-tabs-mode: nil; tab-width:2  -*-
 /***********************************************************************
 Moses - factored phrase-based language decoder
 Copyright (C) 2006 University of Edinburgh
@@ -58,17 +56,20 @@ public:
   Scores const* GetExtraScores(FeatureFunction const* ff) const;
   void SetExtraScores(FeatureFunction const* ff,boost::shared_ptr<Scores> const& scores);
 
+  typedef std::map<size_t const, std::vector<SPTR<std::vector<float> > > > CoordCache_t;
+  std::vector<SPTR<std::vector<float> > > const* GetCoordList(size_t const spaceID) const;
+  void PushCoord(size_t const spaceID, SPTR<std::vector<float> > const coord);
 
 private:
   ScoreCache_t m_cached_scores;
-  ttasksptr m_ttask;
-  bool m_ttask_flag;
+  SPTR<CoordCache_t> m_cached_coord;
+  WPTR<ContextScope> m_scope;
 
 private:
   friend std::ostream& operator<<(std::ostream&, const TargetPhrase&);
   friend void swap(TargetPhrase &first, TargetPhrase &second);
 
-  float m_fullScore, m_futureScore;
+  float m_futureScore, m_estimatedScore;
   ScoreComponentCollection m_scoreBreakdown;
 
   const AlignmentInfo* m_alignTerm, *m_alignNonTerm;
@@ -92,8 +93,12 @@ public:
   TargetPhrase(ttasksptr &ttask, const PhraseDictionary *pt = NULL);
   TargetPhrase(ttasksptr &ttask, std::string out_string, const PhraseDictionary *pt = NULL);
   explicit TargetPhrase(ttasksptr &ttask, const Phrase &targetPhrase, const PhraseDictionary *pt);
-  const ttasksptr& GetTtask() const;
-  bool HasTtaskSPtr() const;
+
+  // ttasksptr GetTtask() const;
+  // bool HasTtaskSPtr() const;
+
+  bool HasScope() const;
+  SPTR<ContextScope> GetScope() const;
 
   ~TargetPhrase();
 
@@ -125,7 +130,7 @@ public:
    *
    */
   inline float GetFutureScore() const {
-    return m_fullScore;
+    return m_futureScore;
   }
 
   inline const ScoreComponentCollection &GetScoreBreakdown() const {
@@ -229,29 +234,6 @@ public:
 void swap(TargetPhrase &first, TargetPhrase &second);
 
 std::ostream& operator<<(std::ostream&, const TargetPhrase&);
-
-/**
- * Hasher that looks at source and target phrase.
- **/
-struct TargetPhraseHasher {
-  inline size_t operator()(const TargetPhrase& targetPhrase) const {
-    size_t seed = 0;
-    boost::hash_combine(seed, targetPhrase);
-    boost::hash_combine(seed, targetPhrase.GetAlignTerm());
-    boost::hash_combine(seed, targetPhrase.GetAlignNonTerm());
-
-    return seed;
-  }
-};
-
-struct TargetPhraseComparator {
-  inline bool operator()(const TargetPhrase& lhs, const TargetPhrase& rhs) const {
-    return lhs.Compare(rhs) == 0 &&
-           lhs.GetAlignTerm() == rhs.GetAlignTerm() &&
-           lhs.GetAlignNonTerm() == rhs.GetAlignNonTerm();
-  }
-
-};
 
 }
 

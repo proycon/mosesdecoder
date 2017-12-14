@@ -25,6 +25,9 @@
 #include "moses/TypeDef.h"
 #include "moses/TranslationModel/PhraseDictionary.h"
 
+#include <boost/tuple/tuple.hpp>
+#include <boost/tuple/tuple_io.hpp>
+
 #ifdef WITH_THREADS
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/thread/locks.hpp>
@@ -52,14 +55,19 @@ class ChartRuleLookupManager;
 class PhraseDictionaryDynamicCacheBased : public PhraseDictionary
 {
 
+//  typedef std::vector<unsigned int> AgeCollection;
   typedef std::vector<unsigned int> AgeCollection;
-  typedef std::pair<TargetPhraseCollection*, AgeCollection*> TargetCollectionAgePair;
-  typedef std::map<Phrase, TargetCollectionAgePair> cacheMap;
+  typedef boost::tuple<TargetPhraseCollection::shared_ptr , AgeCollection*, Scores*> TargetCollectionPair;
+  typedef std::map<Phrase, TargetCollectionPair> cacheMap;
+
+  // factored translation
+  std::vector<FactorType> m_inputFactorsVec, m_outputFactorsVec;
 
   // data structure for the cache
   cacheMap m_cacheTM;
   std::vector<Scores> precomputedScores;
   unsigned int m_maxAge;
+  unsigned int m_numscorecomponent;
   size_t m_score_type; //scoring type of the match
   size_t m_entries; //total number of entries in the cache
   float m_lower_score; //lower_bound_score for no match
@@ -108,12 +116,17 @@ public:
     return *s_instance;
   }
 
-  void Load();
+  void Load(AllOptions::ptr const& opts);
   void Load(const std::string files);
 
-  const TargetPhraseCollection* GetTargetPhraseCollection(const Phrase &src) const;
-  const TargetPhraseCollection* GetTargetPhraseCollectionLEGACY(Phrase const &src) const;
-  const TargetPhraseCollection* GetTargetPhraseCollectionNonCacheLEGACY(Phrase const &src) const;
+  TargetPhraseCollection::shared_ptr
+  GetTargetPhraseCollection(const Phrase &src) const;
+
+  TargetPhraseCollection::shared_ptr
+  GetTargetPhraseCollectionLEGACY(Phrase const &src) const;
+
+  TargetPhraseCollection::shared_ptr
+  GetTargetPhraseCollectionNonCacheLEGACY(Phrase const &src) const;
 
   // for phrase-based model
   //  void GetTargetPhraseCollectionBatch(const InputPathList &inputPathQueue) const;
@@ -146,13 +159,14 @@ protected:
   static std::map< const std::string, PhraseDictionaryDynamicCacheBased * > s_instance_map;
 
   float decaying_score(const int age);  // calculates the decay score given the age
+  Scores Conv2VecFloats(std::string&);
   void Insert(std::vector<std::string> entries);
 
   void Decay();   // traverse through the cache and decay each entry
   void Decay(Phrase p);   // traverse through the cache and decay each entry for a given Phrase
   void Update(std::vector<std::string> entries, std::string ageString);
-  void Update(std::string sourceString, std::string targetString, std::string ageString, std::string waString="");
-  void Update(Phrase p, TargetPhrase tp, int age, std::string waString="");
+  void Update(std::string sourceString, std::string targetString, std::string ageString, std::string ScoreString="", std::string waString="");
+  void Update(Phrase p, TargetPhrase tp, int age, Scores scores, std::string waString="");
 
   void ClearEntries(std::vector<std::string> entries);
   void ClearEntries(std::string sourceString, std::string targetString);

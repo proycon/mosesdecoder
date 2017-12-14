@@ -1,4 +1,4 @@
-// -*- c++ -*-
+// -*- mode: c++; indent-tabs-mode: nil; tab-width:2  -*-
 #pragma once
 
 #include <boost/smart_ptr/shared_ptr.hpp>
@@ -43,8 +43,8 @@ class TranslationTask : public Moses::Task
   operator=(TranslationTask const& other) {
     return *this;
   }
-
 protected:
+  AllOptions::ptr m_options;
   boost::weak_ptr<TranslationTask> m_self; // weak ptr to myself
   boost::shared_ptr<ContextScope> m_scope; // sores local info
   // pointer to ContextScope, which stores context-specific information
@@ -66,8 +66,8 @@ protected:
   // task is still live or not, or maintain a shared_ptr to ensure the
   // task stays alive till it's done with it.
 
-  std::string m_context_string;
-  std::map<std::string, float> m_context_weights;
+  boost::shared_ptr<std::vector<std::string> > m_context;
+  // SPTR<std::map<std::string, float> const> m_context_weights;
 public:
 
   boost::shared_ptr<TranslationTask>
@@ -93,6 +93,12 @@ public:
   create(boost::shared_ptr<Moses::InputType> const& source,
          boost::shared_ptr<Moses::IOWrapper> const& ioWrapper);
 
+  static
+  boost::shared_ptr<TranslationTask>
+  create(boost::shared_ptr<Moses::InputType> const& source,
+         boost::shared_ptr<Moses::IOWrapper> const& ioWrapper,
+         boost::shared_ptr<ContextScope>     const& scope);
+
   ~TranslationTask();
   /** Translate one sentence
    * gets called by main function implemented at end of this source file */
@@ -103,8 +109,13 @@ public:
     return m_source;
   }
 
+  boost::shared_ptr<Moses::IOWrapper const>
+  GetIOWrapper() const {
+    return m_ioWrapper;
+  }
+
   boost::shared_ptr<BaseManager>
-  SetupManager(SearchAlgorithm algo = DefaultSearchAlgorithm);
+  SetupManager(SearchAlgorithm algo); //  = DefaultSearchAlgorithm);
 
 
   boost::shared_ptr<ContextScope> const&
@@ -113,18 +124,23 @@ public:
     return m_scope;
   }
 
-  std::string const& GetContextString() const;
-  void SetContextString(std::string const& context);
+  boost::shared_ptr<std::vector<std::string> >
+  GetContextWindow() const;
 
-  std::map<std::string, float> const& GetContextWeights() const;
-  void SetContextWeights(std::string const& context_weights);
-  void ReSetContextWeights(std::map<std::string, float> const& new_weights);
+  void
+  SetContextWindow(boost::shared_ptr<std::vector<std::string> > const& cw);
 
+  // SPTR<std::map<std::string, float> const> GetContextWeights() const;
+  // void SetContextWeights(std::string const& context_weights);
+  // void ReSetContextWeights(std::map<std::string, float> const& new_weights);
+
+  AllOptions::ptr const& options() const;
 
 protected:
   boost::shared_ptr<Moses::InputType> m_source;
   boost::shared_ptr<Moses::IOWrapper> m_ioWrapper;
 
+  void interpret_dlt();
 };
 
 

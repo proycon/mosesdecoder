@@ -92,6 +92,18 @@ parser.add_argument(
 parser.add_argument(
     "--mmap", dest="mmap", action="store_true",
     help="Use memory-mapped file (for lower memory consumption).")
+parser.add_argument(
+    "--dropout", dest="dropout", action="store",
+    help="Pass dropout to nplm")
+parser.add_argument(
+  "--input-dropout", dest="input_dropout", action="store",
+    help="Pass input dropout to nplm")
+parser.add_argument(
+    "--extra-settings", dest="extra_settings",
+    help="Extra settings for nplm")
+parser.add_argument(
+    "--train-host", dest="train_host",
+    help="Execute nplm training on this host, via ssh")
 
 parser.set_defaults(
     working_dir="working",
@@ -122,39 +134,65 @@ def main(options):
 
     if options.output_dir is None:
         options.output_dir = options.working_dir
-    else:
-        # Create output dir if necessary
-        if not os.path.exists(options.output_dir):
-            os.makedirs(options.output_dir)
+    # Create dirs if necessary
+    if not os.path.exists(options.working_dir):
+        os.makedirs(options.working_dir)
+    if not os.path.exists(options.output_dir):
+        os.makedirs(options.output_dir)
 
     numberized_file = os.path.basename(options.corpus_stem) + '.numberized'
+    vocab_file =os.path.join(options.working_dir, options.words_file) 
     train_file = numberized_file
     if options.mmap:
         train_file += '.mmap'
 
-    extraction_cmd = [
+    extraction_cmd = []
+    if options.train_host:
+      extraction_cmd = ["ssh", options.train_host]
+    extraction_cmd += [
         os.path.join(options.nplm_home, 'src', 'prepareNeuralLM'),
         '--train_text', options.corpus_stem,
         '--ngramize', '1',
         '--ngram_size', str(options.ngram_size),
         '--vocab_size', str(options.vocab_size),
-        '--write_words_file', os.path.join(
-            options.working_dir, options.words_file),
+        '--write_words_file', vocab_file,
         '--train_file', os.path.join(options.working_dir, numberized_file)
         ]
 
     sys.stderr.write('extracting n-grams\n')
     sys.stderr.write('executing: ' + ', '.join(extraction_cmd) + '\n')
-    ret = subprocess.call(extraction_cmd)
-    if ret:
-        raise Exception("preparing neural LM failed")
+    subprocess.check_call(extraction_cmd)
+
+    # if dropout enabled, need to check which is the <null> vocab id
+    null_id = None
+    if options.dropout or options.input_dropout:
+      with open(vocab_file) as vfh:
+        for i,line in enumerate(vfh):
+          if line[:-1].decode("utf8") == "<null>":
+            null_id = i
+            break
+      if null_id == None:
+        sys.stderr.write("WARN: could not identify null token, cannot enable dropout\n")
+      else:
+        if not options.extra_settings:
+          options.extra_settings = ""
+        if options.dropout or options.input_dropout:
+          options.extra_settings += " --null_index %d " % null_id
+        if options.dropout:
+          options.extra_settings += " --dropout %s " % options.dropout
+        if options.input_dropout:
+          options.extra_settings += " --input_dropout %s " % options.input_dropout
+
 
     if options.mmap:
         try:
             os.remove(os.path.join(options.working_dir, train_file))
         except OSError:
             pass
-        mmap_cmd = [
+        mmap_cmd = []
+        if options.train_host:
+          mmap_cmd = ["ssh", options.train_host]
+        mmap_cmd += [
             os.path.join(options.nplm_home, 'src', 'createMmap'),
             '--input_file',
             os.path.join(options.working_dir, numberized_file),
@@ -169,14 +207,16 @@ def main(options):
 
     if options.validation_corpus:
 
-        extraction_cmd = [
+        extraction_cmd = []
+        if options.train_host:
+          extraction_cmd = ["ssh", options.train_host]
+        extraction_cmd += [
             os.path.join(options.nplm_home, 'src', 'prepareNeuralLM'),
             '--train_text', options.validation_corpus,
             '--ngramize', '1',
             '--ngram_size', str(options.ngram_size),
             '--vocab_size', str(options.vocab_size),
-            '--words_file', os.path.join(
-                options.working_dir, options.words_file),
+            '--words_file', vocab_file,
             '--train_file', os.path.join(
                 options.working_dir,
                 os.path.basename(options.validation_corpus) + '.numberized')
@@ -193,8 +233,8 @@ def main(options):
     else:
         options.validation_file = None
 
-    options.input_words_file = os.path.join(options.working_dir, options.words_file)
-    options.output_words_file = os.path.join(options.working_dir, options.words_file)
+    options.input_words_file = vocab_file
+    options.output_words_file = vocab_file
     options.input_vocab_size = options.vocab_size
     options.output_vocab_size = options.vocab_size
 
@@ -202,10 +242,15 @@ def main(options):
     train_nplm.main(options)
 
     sys.stderr.write('averaging null words\n')
+    output_model_file = os.path.join(
+              options.output_dir,
+              options.output_model + '.model.nplm.best')
+    if not os.path.exists(output_model_file):
+      output_model_file =  os.path.join(
+              options.output_dir,
+              options.output_model + '.model.nplm.' + str(options.epochs))
     average_options = averageNullEmbedding.parser.parse_args([
-        '-i', os.path.join(
-            options.output_dir,
-            options.output_model + '.model.nplm.' + str(options.epochs)),
+        '-i', output_model_file ,
         '-o', os.path.join(
             options.output_dir, options.output_model + '.model.nplm'),
         '-t', os.path.join(options.working_dir, numberized_file),

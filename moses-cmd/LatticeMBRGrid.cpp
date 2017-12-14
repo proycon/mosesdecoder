@@ -49,6 +49,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "moses/IOWrapper.h"
 #include "moses/LatticeMBR.h"
 #include "moses/Manager.h"
+#include "moses/Timer.h"
 #include "moses/StaticData.h"
 #include "util/exception.hh"
 
@@ -76,8 +77,8 @@ public:
   }
 
   /** Parse the arguments, removing those that define the grid and returning a copy of the rest */
-  void parseArgs(int& argc, char**& argv) {
-    char** newargv = new char*[argc+1]; //Space to add mbr parameter
+  void parseArgs(int& argc, char const**& argv) {
+    char const** newargv = new char const*[argc+1]; //Space to add mbr parameter
     int newargc = 0;
     for (int i = 0; i < argc; ++i) {
       bool consumed = false;
@@ -113,8 +114,9 @@ public:
         }
       }
       if (!consumed) {
-        newargv[newargc] = new char[strlen(argv[i]) + 1];
-        strcpy(newargv[newargc],argv[i]);
+        // newargv[newargc] = new char[strlen(argv[i]) + 1];
+        // strcpy(newargv[newargc],argv[i]);
+        newargv[newargc] = argv[i];
         ++newargc;
       }
     }
@@ -137,7 +139,7 @@ private:
 
 } // namespace
 
-int main(int argc, char* argv[])
+int main(int argc, char const* argv[])
 {
   cerr << "Lattice MBR Grid search" << endl;
 
@@ -154,18 +156,23 @@ int main(int argc, char* argv[])
     params->Explain();
     exit(1);
   }
+
+  ResetUserTime();
   if (!StaticData::LoadDataStatic(params, argv[0])) {
     exit(1);
   }
 
   StaticData& SD = const_cast<StaticData&>(StaticData::Instance());
-  SD.SetUseLatticeMBR(true);
+  boost::shared_ptr<AllOptions> opts(new AllOptions(*SD.options()));
+  LMBR_Options& lmbr = opts->lmbr;
+  MBR_Options&   mbr = opts->mbr;
+  lmbr.enabled = true;
 
-  boost::shared_ptr<IOWrapper> ioWrapper(new IOWrapper);
+  boost::shared_ptr<IOWrapper> ioWrapper(new IOWrapper(*opts));
   if (!ioWrapper) {
     throw runtime_error("Failed to initialise IOWrapper");
   }
-  size_t nBestSize = SD.GetMBRSize();
+  size_t nBestSize = mbr.size;
 
   if (nBestSize <= 0) {
     throw new runtime_error("Non-positive size specified for n-best list");
@@ -187,21 +194,19 @@ int main(int argc, char* argv[])
     manager.CalcNBest(nBestSize, nBestList,true);
     //grid search
     BOOST_FOREACH(float const& p, pgrid) {
-      SD.SetLatticeMBRPrecision(p);
+      lmbr.precision = p;
       BOOST_FOREACH(float const& r, rgrid) {
-        SD.SetLatticeMBRPRatio(r);
+        lmbr.ratio = r;
         BOOST_FOREACH(size_t const prune_i, prune_grid) {
-          SD.SetLatticeMBRPruningFactor(size_t(prune_i));
+          lmbr.pruning_factor = prune_i;
           BOOST_FOREACH(float const& scale_i, scale_grid) {
-            SD.SetMBRScale(scale_i);
+            mbr.scale = scale_i;
             size_t lineCount = source->GetTranslationId();
             cout << lineCount << " ||| " << p << " "
                  << r << " " << size_t(prune_i) << " " << scale_i
                  << " ||| ";
             vector<Word> mbrBestHypo = doLatticeMBR(manager,nBestList);
-            manager.OutputBestHypo(mbrBestHypo, lineCount,
-                                   SD.GetReportSegmentation(),
-                                   SD.GetReportAllFactors(),cout);
+            manager.OutputBestHypo(mbrBestHypo, cout);
           }
         }
       }

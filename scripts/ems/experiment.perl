@@ -384,11 +384,11 @@ sub read_config {
 	$resolve = 0;
 	foreach my $parameter (keys %CONFIG) {
 	    foreach (@{$CONFIG{$parameter}}) {
-		next unless /\$/;
+		next unless /\$[a-z\{]/i;
 		my $escaped = 0;
 		die ("BAD USE OF \$ IN VALUE used in parameter $parameter")
-		    if ! ( /^(.*)\$([a-z\-\:\d]+)(.*)$/i ||
-			  (/^(.*)\$\{([a-z\-\:\d]+)\}(.*)$/i && ($escaped = 1)));
+		    if ! ( /^(.*)\$([a-z][a-z\-\:\d]*)(.*)$/i ||
+			  (/^(.*)\$\{([a-z][a-z\-\:\d]*)\}(.*)$/i && ($escaped = 1)));
 		my ($pre,$substitution,$post) = ($1,$2,$3);
 		my $pattern = $substitution;
 		if ($substitution !~ /\:/) { # handle local variables
@@ -853,7 +853,7 @@ sub delete_output {
     `rm -r $file` if $EXECUTE;
   }
   # delete regular file that matches exactly
-  if (-e $file) {
+  elsif (-e $file) {
     print "\tdelete file $file\n";
     `rm $file` if $EXECUTE;
   }
@@ -864,13 +864,13 @@ sub delete_output {
   foreach (`ls $dir`) {
     chop;
     next unless substr($_,0,length($f)) eq $f;
-    if (-e "$dir/$_") {
+    if (-d "$dir/$_") {
+      print "\tdelete directory $file\n";
+      `rm -r $dir/$_` if $EXECUTE;
+    }
+    elsif (-e "$dir/$_") {
       print "\tdelete file $dir/$_\n";
       `rm $dir/$_` if $EXECUTE;
-    }
-    else {
-      print "\tdelete directory $dir/$_\n";
-      `rm -r $dir/$_` if $EXECUTE;
     }
   }
 }
@@ -1098,7 +1098,7 @@ sub draw_agenda_graph {
     print DOT "}\n";
     close(DOT);
     my $graph_file = &steps_file("graph.$VERSION",$VERSION);
-    `dot -Tps $graph_file.dot >$graph_file.ps`;
+    `dot -Tps $graph_file.dot >$graph_file.ps 2>/dev/null`;
     `convert -alpha off $graph_file.ps $graph_file.png`;
 }
 
@@ -1119,13 +1119,13 @@ sub define_step {
 	next if $RE_USE[$i];
 	next if defined($PASS{$i});
 	next if &define_template($i);
-        if ($DO_STEP[$i] =~ /^CORPUS:(.+):factorize$/) {
+        if ($DO_STEP[$i] =~ /^CORPUS:(.+):(post-split-)?factorize$/) {
             &define_corpus_factorize($i);
         }
 	elsif ($DO_STEP[$i] eq 'SPLITTER:train') {
 	    &define_splitter_train($i);
 	}
-        elsif ($DO_STEP[$i] =~ /^LM:(.+):factorize$/) {
+        elsif ($DO_STEP[$i] =~ /^LM:(.+):(post-split-)?factorize$/) {
             &define_lm_factorize($i,$1);
         }
 	elsif ($DO_STEP[$i] =~ /^LM:(.+):randomize$/ ||
@@ -1135,6 +1135,15 @@ sub define_step {
 	elsif ($DO_STEP[$i] =~ /^LM:(.+):train-randomized$/) {
 	    &define_lm_train_randomized($i,$1);
 	}
+  elsif ($DO_STEP[$i] =~ /^LM:(.+):train-bilingual-lm$/) {
+	    &define_lm_train_bilingual_lm($i,$1);
+  }
+  elsif ($DO_STEP[$i] =~ /^LM:(.+):prepare-bilingual-lm$/) {
+	    &define_lm_prepare_bilingual_lm($i,$1);
+  }
+  elsif ($DO_STEP[$i] =~ /^LM:(.+):train-nplm$/) {
+      &define_lm_train_nplm($i,$1);
+  }
         elsif ($DO_STEP[$i] eq 'TRAINING:prepare-data') {
             &define_training_prepare_data($i);
         }
@@ -1182,7 +1191,7 @@ sub define_step {
 	elsif ($DO_STEP[$i] eq 'TRAINING:create-config' || $DO_STEP[$i] eq 'TRAINING:create-config-interpolated-lm') {
 	    &define_training_create_config($i);
 	}
-	elsif ($DO_STEP[$i] eq 'INTERPOLATED-LM:factorize-tuning') {
+	elsif ($DO_STEP[$i] =~ /^INTERPOLATED-LM:(post-split-)?factorize-tuning$/) {
 	    &define_interpolated_lm_factorize_tuning($i);
 	}
 	elsif ($DO_STEP[$i] eq 'INTERPOLATED-LM:interpolate') {
@@ -1777,6 +1786,99 @@ sub define_lm_train_randomized {
     &create_step($step_id,$cmd);
 }
 
+sub define_lm_train_bilingual_lm {
+    my ($step_id,$set) = @_;
+	  my ($working_dir, $ngrams, $corpus)		= &get_output_and_input($step_id);
+    my $scripts = &check_backoff_and_get("LM:moses-script-dir");
+    my $cmd = "$scripts/training/bilingual-lm/train_nplm.py -w $working_dir -c $corpus -r $working_dir";
+    my $nplm_dir = &check_backoff_and_get("LM:$set:nplm-dir");
+    $cmd .= " -l $nplm_dir";
+
+    my ($n, $m, $total_order) = &get_bilingual_lm_order($set);
+    $cmd .= " -n $total_order";
+
+    my $epochs = &get_bilingual_lm_epochs($set);
+    $cmd .= " -e $epochs" if defined($epochs);
+
+    my $nnjm_settings = backoff_and_get("LM:$set:nnjm-settings");
+    $cmd .= " ";
+    $cmd .= $nnjm_settings;
+
+    my $nplm_settings = backoff_and_get("LM:$set:nplm-settings");
+    $cmd .= " --extra-settings \"$nplm_settings\"" if defined($nplm_settings);
+
+    # Create the ini file
+    $cmd .= "\n";
+    $cmd .= "$scripts/training/bilingual-lm/create_blm_ini.py -w $working_dir -n $n -m $m -x $set -e $epochs";
+
+    &create_step($step_id,$cmd);
+}
+
+sub define_lm_prepare_bilingual_lm {
+    my ($step_id,$set) = @_;
+	  my ($working_dir, $corpus, $align)		= &get_output_and_input($step_id);
+    my $scripts = &check_backoff_and_get("LM:moses-script-dir");
+    my $cmd = "$scripts/training/bilingual-lm/extract_training.py -w $working_dir -c $corpus";
+
+    my $input_extension = &check_backoff_and_get("GENERAL:input-extension");
+    my $output_extension = &check_backoff_and_get("GENERAL:output-extension");
+    $cmd .= " -e $output_extension -f $input_extension";
+
+    my $align_method = &check_backoff_and_get("TRAINING:alignment-symmetrization-method");
+    $cmd .= " -a $align.$align_method";
+
+    my ($n, $m, $total_order) = &get_bilingual_lm_order($set);
+    $cmd .= " -n $n -m $m";
+
+    my $bilingual_settings = backoff_and_get("LM:$set:bilingual-lm-settings");
+    $cmd .= " $bilingual_settings" if defined($bilingual_settings);
+
+
+    &create_step($step_id,$cmd);
+}
+
+sub define_lm_train_nplm {
+    my ($step_id,$set) = @_;
+	  my ($working_dir, $corpus)		= &get_output_and_input($step_id);
+    my $scripts = &check_backoff_and_get("LM:moses-script-dir");
+    my $cmd = "$scripts/training/train-neurallm.py --mmap --working-dir $working_dir --corpus $corpus";
+    my $nplm_dir = &check_backoff_and_get("LM:$set:nplm-dir");
+    $cmd .= " --nplm-home $nplm_dir";
+
+    my $epochs = &backoff_and_get("LM:$set:epochs");
+    $epochs = 2 unless defined($epochs);
+    $cmd .= " --epochs $epochs";
+
+    my $nplm_settings = backoff_and_get("LM:$set:nplm-settings");
+    $cmd .= " $nplm_settings" if defined($nplm_settings);
+
+    my $order = &backoff_and_get("LM:$set:order");
+    $order = 5 unless defined($order);
+    $cmd .= " --order $order";
+
+    # Create the ini file
+    $cmd .= "\n";
+    $cmd .= "$scripts/training/create_nplm_ini.py -w $working_dir -e $epochs -x $set -n $order";
+
+    &create_step($step_id,$cmd);
+}
+
+sub get_bilingual_lm_order {
+  my ($set) = @_;
+  my $order = &backoff_and_get("LM:$set:order");
+  $order = 5 unless defined ($order);
+  my $source_window = &backoff_and_get("LM:$set:source-window");
+  $source_window = 4 unless defined ($order);
+  return ($order, $source_window, $order + 2*$source_window+1);
+}
+
+sub get_bilingual_lm_epochs {
+  my ($set) = @_;
+  my $epochs = &backoff_and_get("LM:$set:epochs");
+  $epochs = 10 unless defined($epochs);
+  return $epochs;
+}
+
 sub define_lm_randomize {
     my ($step_id,$set_dummy) = @_;
 
@@ -1894,6 +1996,12 @@ sub define_tuning_tune {
 	my $tune_inputtype = &backoff_and_get("TUNING:inputtype");
 	my $jobs = &backoff_and_get("TUNING:jobs");
 	my $decoder = &check_backoff_and_get("TUNING:decoder");
+        my $cache_model = &backoff_and_get("GENERAL:cache-model");
+
+        if (defined($cache_model) && !($jobs && $jobs>1 && $CLUSTER)) {
+          $cmd .= "MOSES_INI=`$scripts/ems/support/cache-model.perl $config $cache_model`\n";
+          $config = "\$MOSES_INI";
+        }
 
 	my $decoder_settings = &backoff_and_get("TUNING:decoder-settings");
 	$decoder_settings = "" unless $decoder_settings;
@@ -1902,7 +2010,7 @@ sub define_tuning_tune {
 	my $tuning_settings = &backoff_and_get("TUNING:tuning-settings");
 	$tuning_settings = "" unless $tuning_settings;
 
-	$cmd = "$tuning_script $input $reference $decoder $config --nbest $nbest_size --working-dir $tmp_dir --decoder-flags \"$decoder_settings\" --rootdir $scripts $tuning_settings --no-filter-phrase-table";
+	$cmd .= "$tuning_script $input $reference $decoder $config --nbest $nbest_size --working-dir $tmp_dir --decoder-flags \"$decoder_settings\" --rootdir $scripts $tuning_settings --no-filter-phrase-table";
 	$cmd .= " --lambdas \"$lambda\"" if $lambda;
 	$cmd .= " --continue" if $tune_continue;
 	$cmd .= " --skip-decoder" if $skip_decoder;
@@ -1911,6 +2019,7 @@ sub define_tuning_tune {
 	my $qsub_args = &get_qsub_args($DO_STEP[$step_id]);
 	$cmd .= " --queue-flags=\"$qsub_args\"" if ($CLUSTER && $qsub_args);
 	$cmd .= " --jobs $jobs" if $CLUSTER && $jobs && $jobs>1;
+        $cmd .= " --cache-model $cache_model" if $cache_model && $CLUSTER && $jobs && $jobs>1;
 	my $tuning_dir = $tuned_config;
 	$tuning_dir =~ s/\/[^\/]+$//;
 	$cmd .= "\nmkdir -p $tuning_dir";
@@ -2206,7 +2315,7 @@ sub define_training_build_transliteration_model {
     my $sym_method = &check_and_get("TRAINING:alignment-symmetrization-method");
     my $moses_src_dir = &check_and_get("GENERAL:moses-src-dir");
     my $external_bin_dir = &check_and_get("GENERAL:external-bin-dir");
-    my $srilm_dir = &check_and_get("TRAINING:srilm-dir");
+    my $srilm_dir = &check_backoff_and_get("TRAINING:srilm-dir");
     my $decoder = &get("TRAINING:transliteration-decoder");
 
     my $cmd = "$moses_script_dir/Transliteration/train-transliteration-module.pl";
@@ -2259,18 +2368,24 @@ sub define_training_extract_phrases {
           $cmd .= "-unknown-word-soft-matches $unknown_word_soft_matches ";
       }
 
+      if (&get("TRAINING:phrase-orientation")) {
+        $cmd .= "-phrase-orientation ";
+        my $phrase_orientation_priors_file = &versionize(&long_file_name("phrase-orientation-priors","model",""));
+        $cmd .= "-phrase-orientation-priors-file $phrase_orientation_priors_file ";
+      }
+
       if (&get("TRAINING:use-ghkm")) {
         $cmd .= "-ghkm ";
       }
 
-      if (&get("TRAINING:ghkm-tree-fragments")) {
-        $cmd .= "-ghkm-tree-fragments ";
+      if (&get("TRAINING:target-syntactic-preferences")) {
+        $cmd .= "-target-syntactic-preferences ";
+        my $target_syntactic_preferences_labels_file = &versionize(&long_file_name("target-syntactic-preferences-labels","model",""));
+        $cmd .= "-target-syntactic-preferences-labels-file $target_syntactic_preferences_labels_file ";
       }
 
-      if (&get("TRAINING:ghkm-phrase-orientation")) {
-        $cmd .= "-ghkm-phrase-orientation ";
-        my $phrase_orientation_priors_file = &versionize(&long_file_name("phrase-orientation-priors","model",""));
-        $cmd .= "-phrase-orientation-priors-file $phrase_orientation_priors_file ";
+      if (&get("TRAINING:ghkm-tree-fragments")) {
+        $cmd .= "-ghkm-tree-fragments ";
       }
 
       if (&get("TRAINING:ghkm-source-labels")) {
@@ -2291,6 +2406,12 @@ sub define_training_extract_phrases {
 
       if (&get("TRAINING:ghkm-strip-bitpar-nonterminal-labels")) {
         $cmd .= "-ghkm-strip-bitpar-nonterminal-labels ";
+      }
+
+    } else { # !hierarchical-rule-set
+
+      if (&get("TRAINING:target-constituent-boundaries")) {
+        $cmd .= "-target-constituent-boundaries ";
       }
     }
 
@@ -2322,14 +2443,20 @@ sub define_training_build_ttable {
 
     if (&get("TRAINING:hierarchical-rule-set")) {
 
-      if (&get("TRAINING:ghkm-tree-fragments")) {
-        $cmd .= "-ghkm-tree-fragments ";
-      }
-
-      if (&get("TRAINING:ghkm-phrase-orientation")) {
-        $cmd .= "-ghkm-phrase-orientation ";
+      if (&get("TRAINING:phrase-orientation")) {
+        $cmd .= "-phrase-orientation ";
         my $phrase_orientation_priors_file = &versionize(&long_file_name("phrase-orientation-priors","model",""));
         $cmd .= "-phrase-orientation-priors-file $phrase_orientation_priors_file ";
+      }
+
+      if (&get("TRAINING:target-syntactic-preferences")) {
+        $cmd .= "-target-syntactic-preferences ";
+        my $target_syntactic_preferences_labels_file = &versionize(&long_file_name("target-syntactic-preferences-labels","model",""));
+        $cmd .= "-target-syntactic-preferences-labels-file $target_syntactic_preferences_labels_file ";
+      }
+
+      if (&get("TRAINING:ghkm-tree-fragments")) {
+        $cmd .= "-ghkm-tree-fragments ";
       }
 
       if (&get("TRAINING:ghkm-source-labels")) {
@@ -2342,6 +2469,12 @@ sub define_training_build_ttable {
         $cmd .= "-ghkm-parts-of-speech ";
         my $parts_of_speech_labels_file = &versionize(&long_file_name("parts-of-speech","model",""));
         $cmd .= "-ghkm-parts-of-speech-file $parts_of_speech_labels_file ";
+      }
+
+    } else { # !hierarchical-rule-set
+
+      if (&get("TRAINING:target-constituent-boundaries")) {
+        $cmd .= "-target-constituent-boundaries ";
       }
     }
 
@@ -2466,7 +2599,7 @@ sub get_config_tables {
     $cmd .= ":$numFF" if defined($numFF);
     $cmd .= " ";
 
-    $cmd .= &get_table_name_settings("reordering-factors","reordering-table",$reordering_table) if $reordering_table;
+    $cmd .= &get_table_name_settings("reordering-factors","reordering-table",$reordering_table) if $reordering_table && !defined($mmsapt);
     $cmd .= &get_table_name_settings("generation-factors","generation-table",$generation_table)	if $generation_table;
     $cmd .= "-config $config ";
 
@@ -2527,12 +2660,26 @@ sub define_training_create_config {
 
     if ($osm) {
       my $osm_settings = &get("TRAINING:operation-sequence-model-settings");
-      if ($osm_settings =~ /-factor *(\S+)/){
+      if ($osm_settings =~ /-factor *(\S+)/) {
         $cmd .= "-osm-model $osm/ -osm-setting $1 ";
       }
       else {
         $cmd .= "-osm-model $osm/operationLM.bin ";
       }
+      my $osm_load_method = &get("TRAINING:operation-sequence-model-load-method");
+      if (defined($osm_load_method)) {
+        $cmd .= "-osm-load-method $osm_load_method ";
+      }
+    }
+
+    if (&get("TRAINING:phrase-orientation")) {
+      $cmd .= "-phrase-orientation ";
+    }
+
+    if (&get("TRAINING:target-syntactic-preferences")) {
+      $cmd .= "-target-syntactic-preferences ";
+      my $target_syntactic_preferences_labels_file = &versionize(&long_file_name("target-syntactic-preferences-labels","model",""));
+      $cmd .= "-target-syntactic-preferences-labels-file $target_syntactic_preferences_labels_file ";
     }
 
     if (&get("TRAINING:ghkm-source-labels")) {
@@ -2547,8 +2694,13 @@ sub define_training_create_config {
       $cmd .= "-ghkm-parts-of-speech-file $parts_of_speech_labels_file ";
     }
 
+    if (&get("TRAINING:target-constituent-boundaries")) {
+      $cmd .= "-target-constituent-boundaries ";
+    }
+
     # sparse lexical features provide additional content for config file
-    $cmd .= "-additional-ini-file $sparse_lexical_features.ini " if $sparse_lexical_features;
+    my @additional_ini_files;
+    push  (@additional_ini_files, "$sparse_lexical_features.ini") if $sparse_lexical_features;
 
     my @LM_SETS = &get_sets("LM");
     my %INTERPOLATED_AWAY;
@@ -2599,8 +2751,11 @@ sub define_training_create_config {
             if (&get("LM:$set:config-feature-line") && &get("LM:$set:config-weight-line")) {
                 $feature_lines .= &get("LM:$set:config-feature-line") . ";";
                 $weight_lines .= &get("LM:$set:config-weight-line") . ";";
-            }
-            else {
+            } elsif (&get("LM:$set:nplm")) {
+               push(@additional_ini_files, "$lm/nplm.ini"); 
+            } elsif (&get("LM:$set:bilingual-lm")) {
+               push(@additional_ini_files, "$lm/blm.ini"); 
+            } else {
                 my $order = &check_backoff_and_get("LM:$set:order");
 
                 my $lm_file = "$lm";
@@ -2629,11 +2784,15 @@ sub define_training_create_config {
             }
     }
 
-    if (defined($feature_lines)) {
+    if ($feature_lines) {
         $cmd .= "-config-add-feature-lines \"$feature_lines\" ";
     }
-    if (defined($weight_lines)) {
+    if ($weight_lines) {
         $cmd .= "-config-add-weight-lines \"$weight_lines\" ";
+    }
+
+    if (@additional_ini_files) {
+        $cmd .= "-additional-ini-file " . join(":", @additional_ini_files);
     }
 
     &create_step($step_id,$cmd);
@@ -2670,7 +2829,7 @@ sub define_interpolated_lm_interpolate {
         my $weight_list = "";
         foreach my $id_set (@{$$ILM_SETS{$factor}{$order}}) {
           my ($id,$set) = split(/ /,$id_set,2);
-          $lm_list .= $LM[$id].",";
+          $lm_list .= $LM[$id]."," if $LM[$id];
           if (defined($weights)) {
             die("ERROR: no interpolation weight set for $factor:$order:$set (factor:order:set)")
               unless defined($WEIGHT{"$factor:$order:$set"});
@@ -2795,7 +2954,8 @@ sub get_interpolated_lm_sets {
   my $count=0;
   my $icount=0;
   foreach my $set (@LM_SETS) {
-    next if (&get("LM:$set:exclude-from-interpolation"));
+    next if (&get("LM:$set:exclude-from-interpolation")) or (&get("LM:$set:bilingual-lm")) 
+      or (&get("LM:$set:nplm"));
     my $order = &check_backoff_and_get("LM:$set:order");
 
     my $factor = 0;
@@ -2831,6 +2991,7 @@ sub get_training_setting {
     my $pcfg = &get("TRAINING:use-pcfg-feature");
     my $baseline_alignment = &get("TRAINING:baseline-alignment-model");
     my $no_glue_grammar = &get("TRAINING:no-glue-grammar");
+    my $mmsapt = &get("TRAINING:mmsapt");
 
     my $xml = $source_syntax || $target_syntax;
 
@@ -2855,6 +3016,7 @@ sub get_training_setting {
     $cmd .= "-parallel " if $parallel;
     $cmd .= "-pcfg " if $pcfg;
     $cmd .= "-baseline-alignment-model $baseline_alignment " if defined($baseline_alignment) && ($step == 1 || $step == 2);
+    $cmd .= "-mmsapt " if defined($mmsapt);
 
     # factored training
     if (&backoff_and_get("TRAINING:input-factors")) {
@@ -3081,12 +3243,6 @@ sub define_evaluation_decode {
     my $word_alignment = &backoff_and_get("TRAINING:include-word-alignment-in-rules");
     my $post_decoding_transliteration = &get("TRAINING:post-decoding-transliteration");
 
-   # If Transliteration Module is to be used as post-decoding step ...
-   if (defined($post_decoding_transliteration) && $post_decoding_transliteration eq "yes"){
-	$settings .= " -output-unknowns $system_output.oov";
-   }
-
-
     # specify additional output for analysis
     if (defined($report_precision_by_coverage) && $report_precision_by_coverage eq "yes") {
       $settings .= " -alignment-output-file $system_output.wa";
@@ -3115,8 +3271,16 @@ sub define_evaluation_decode {
 	$input = $input_with_tags;
     }
 
-    # create command
+    # cache model on local disk
     my $cmd;
+    my $cache_model = &backoff_and_get("GENERAL:cache-model");
+    if (defined($cache_model) && !($jobs && $jobs>1 && $CLUSTER)) {
+      my $scripts = &check_and_get("GENERAL:moses-script-dir");
+      $cmd = "MOSES_INI=`$scripts/ems/support/cache-model.perl $config $cache_model`\n";
+      $config = "\$MOSES_INI";
+    }
+
+    # create command
     my $nbest_size;
     $nbest_size = $nbest if $nbest;
     $nbest_size =~ s/[^\d]//g if $nbest;
@@ -3132,6 +3296,7 @@ sub define_evaluation_decode {
 	$cmd .= " -queue-parameters \"$qsub_args\"" if ($CLUSTER && $qsub_args);
 	$cmd .= " -decoder $decoder";
 	$cmd .= " -config $config";
+        $cmd .= " -cache-model $cache_model" if defined($cache_model);
 	$cmd .= " -input-file $input";
 	$cmd .= " --jobs $jobs";
 	$cmd .= " -decoder-parameters \"$settings\" > $system_output";
@@ -3141,6 +3306,10 @@ sub define_evaluation_decode {
 	$cmd = "$decoder $settings -v 0 -f $config < $input > $system_output";
 	$cmd .= " -n-best-list $system_output.best$nbest_size $nbest" if $nbest;
     }
+
+    # If Transliteration Module is to be used as post-decoding step ...
+    $cmd .= " -output-unknowns $system_output.oov"
+      if defined($post_decoding_transliteration) && $post_decoding_transliteration eq "yes";
 
     &create_step($step_id,$cmd);
 }
@@ -3454,16 +3623,25 @@ sub define_template {
     }
     $cmd =~ s/VERSION/$VERSION/g;
     print "\tcmd is $cmd\n" if $VERBOSE;
-    while ($cmd =~ /^([\S\s]*)\$\{([^\s\/\"\']+)\}([\S\s]*)$/ ||
-           $cmd =~ /^([\S\s]*)\$([^\s\/\"\']+)([\S\s]*)$/) {
-	my ($pre,$variable,$post) = ($1,$2,$3);
-	$cmd = $pre
-	    . &check_backoff_and_get(&extend_local_name($module,$set,$variable))
-	    . $post;
+
+    # replace variables
+    while ($cmd =~ /^([\S\s]*)\$(\??)\{([a-z][^\s\/\"\']*)\}([\S\s]*)$/i ||
+           $cmd =~ /^([\S\s]*)\$(\??)([a-z][^\s\/\"\']*)([\S\s]*)$/i) {
+	my ($pre,$optional,$variable,$post) = ($1,$2,$3,$4);
+	my $value;
+	if ($optional eq '?') {
+	  $value = &backoff_and_get(&extend_local_name($module,$set,$variable));
+          $value = "" unless $value;
+        }
+	else {
+	  $value = &check_backoff_and_get(&extend_local_name($module,$set,$variable));
+	} 
+	$cmd = $pre.$value.$post;
     }
 
     # deal with pipelined commands
-    $cmd =~ s/\|(.*)(\<\s*\S+) /$2 \| $1 /g;
+    $cmd =~ s/\|(.*[^\\])(\<\s*\S+) /$2 \| $1 /g;
+    $cmd =~ s/\\\</\</g;
 
     # deal with gzipped input
     my $c = "";

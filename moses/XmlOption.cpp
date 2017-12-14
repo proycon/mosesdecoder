@@ -1,6 +1,5 @@
-// $Id$
+// -*- mode: c++; indent-tabs-mode: nil; tab-width:2  -*-
 // vim:tabstop=2
-
 /***********************************************************************
   Moses - factored phrase-based language decoder
   Copyright (C) 2006 University of Edinburgh
@@ -29,7 +28,7 @@
 #include <boost/unordered_map.hpp>
 #include "Util.h"
 #include "StaticData.h"
-#include "WordsRange.h"
+#include "Range.h"
 #include "TargetPhrase.h"
 #include "ReorderingConstraint.h"
 #include "FactorCollection.h"
@@ -159,14 +158,21 @@ vector<string> TokenizeXml(const string& str, const std::string& lbrackStr, cons
  * \param lbrackStr xml tag's left bracket string, typically "<"
  * \param rbrackStr xml tag's right bracket string, typically ">"
  */
-bool ProcessAndStripXMLTags(string &line, vector<XmlOption*> &res, ReorderingConstraint &reorderingConstraint, vector< size_t > &walls,
-                            std::vector< std::pair<size_t, std::string> > &placeholders,
-                            int offset,
-                            const std::string& lbrackStr, const std::string& rbrackStr)
+bool
+ProcessAndStripXMLTags(AllOptions const& opts, string &line,
+                       vector<XmlOption const*> &res,
+                       ReorderingConstraint &reorderingConstraint,
+                       vector< size_t > &walls,
+                       std::vector< std::pair<size_t, std::string> > &placeholders,
+                       InputType &input)
 {
   //parse XML markup in translation line
 
-  const StaticData &staticData = StaticData::Instance();
+  const std::string& lbrackStr = opts.input.xml_brackets.first;
+  const std::string& rbrackStr = opts.input.xml_brackets.second;
+  int offset = is_syntax(opts.search.algo) ? 1 : 0;
+
+  // const StaticData &staticData = StaticData::Instance();
 
   // hack. What pt should XML trans opt be assigned to?
   PhraseDictionary *firstPt = NULL;
@@ -175,7 +181,6 @@ bool ProcessAndStripXMLTags(string &line, vector<XmlOption*> &res, ReorderingCon
   }
 
   // no xml tag? we're done.
-//if (line.find_first_of('<') == string::npos) {
   if (line.find(lbrackStr) == string::npos) {
     return true;
   }
@@ -192,8 +197,7 @@ bool ProcessAndStripXMLTags(string &line, vector<XmlOption*> &res, ReorderingCon
   string cleanLine; // return string (text without xml)
   size_t wordPos = 0; // position in sentence (in terms of number of words)
 
-  const vector<FactorType> &outputFactorOrder = staticData.GetOutputFactorOrder();
-  // const string &factorDelimiter = staticData.GetFactorDelimiter();
+  const vector<FactorType> &outputFactorOrder = opts.output.factor_order;
 
   // loop through the tokens
   for (size_t xmlTokenPos = 0 ; xmlTokenPos < xmlTokens.size() ; xmlTokenPos++) {
@@ -398,6 +402,28 @@ bool ProcessAndStripXMLTags(string &line, vector<XmlOption*> &res, ReorderingCon
           StaticData::InstanceNonConst().SetAllWeights(allWeights);
         }
 
+        // Coord: coordinates of the input sentence in a user-defined space
+        // <coord space="NAME" coord="X Y Z ..." />
+        // where NAME is the name of the space and X Y Z ... are floats.  See
+        // PhraseDistanceFeature for an example of using this information for
+        // feature scoring.
+        else if (tagName == "coord") {
+          // Parse tag
+          string space = ParseXmlTagAttribute(tagContent, "space");
+          vector<string> tok = Tokenize(ParseXmlTagAttribute(tagContent, "coord"));
+          size_t id = StaticData::Instance().GetCoordSpace(space);
+          if (!id) {
+            TRACE_ERR("ERROR: no models use space " << space << ", will be ignored" << endl);
+          } else {
+            // Init if needed
+            if (!input.m_coordMap) {
+              input.m_coordMap.reset(new map<size_t const, vector<float> >);
+            }
+            vector<float>& coord = (*input.m_coordMap)[id];
+            Scan<float>(coord, tok);
+          }
+        }
+
         // default: opening tag that specifies translation options
         else {
           if (startPos > endPos) {
@@ -440,7 +466,7 @@ bool ProcessAndStripXMLTags(string &line, vector<XmlOption*> &res, ReorderingCon
           }
 
           // store translation options into members
-          if (staticData.GetXmlInputType() != XmlIgnore) {
+          if (opts.input.xml_policy != XmlIgnore) {
             // only store options if we aren't ignoring them
             for (size_t i=0; i<altTexts.size(); ++i) {
               Phrase sourcePhrase; // TODO don't know what the source phrase is
@@ -451,13 +477,24 @@ bool ProcessAndStripXMLTags(string &line, vector<XmlOption*> &res, ReorderingCon
               // convert from prob to log-prob
               float scoreValue = FloorScore(TransformScore(probValue));
 
-              WordsRange range(startPos + offset,endPos-1 + offset); // span covered by phrase
+              Range range(startPos + offset,endPos-1 + offset); // span covered by phrase
               TargetPhrase targetPhrase(firstPt);
-              // targetPhrase.CreateFromString(Output, outputFactorOrder,altTexts[i],factorDelimiter, NULL);
-              targetPhrase.CreateFromString(Output, outputFactorOrder,altTexts[i], NULL);
+              // Target factors may be used by intermediate models (example: a
+              // generation model produces a factor used by a class-based LM
+              // but NOT output.  Fake the output factor order to match the
+              // number of factors specified in the alt text.  A one-factor
+              // system would have "word", a two-factor system would have
+              // "word|class", and so on.
+              vector<FactorType> fakeOutputFactorOrder;
+              // Factors in first word of alt text
+              size_t factorsInAltText = TokenizeMultiCharSeparator(Tokenize(altTexts[i])[0], StaticData::Instance().GetFactorDelimiter()).size();
+              for (size_t f = 0; f < factorsInAltText; ++f) {
+                fakeOutputFactorOrder.push_back(f);
+              }
+              targetPhrase.CreateFromString(Output, fakeOutputFactorOrder, altTexts[i], NULL);
 
               // lhs
-              const UnknownLHSList &lhsList = staticData.GetUnknownLHS();
+              const UnknownLHSList &lhsList = opts.syntax.unknown_lhs; // staticData.GetUnknownLHS();
               if (!lhsList.empty()) {
                 const Factor *factor = FactorCollection::Instance().AddFactor(lhsList[0].first, true);
                 Word *targetLHS = new Word(true);
